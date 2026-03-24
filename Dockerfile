@@ -11,6 +11,6 @@ RUN deno install
 # Copy source
 COPY . .
 
-EXPOSE 3020
+EXPOSE 8080
 
 CMD ["sh", "-c", "if [ -f /app/entrypoint.sh ]; then sh /app/entrypoint.sh; else deno task serve; fi"]
