@@ -2,10 +2,12 @@ import { type Context, Status } from "@oak/oak";
 import { StrKey } from "@colibri/core";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
+import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
 import { queryChannelState } from "@/core/service/channel/channel-state.service.ts";
 import { LOG } from "@/config/logger.ts";
 
 const channelRepo = new CouncilChannelRepository(drizzleClient);
+const knownAssetRepo = new KnownAssetRepository(drizzleClient);
 
 function formatChannel(ch: { id: string; channelContractId: string; assetCode: string; assetContractId: string | null; label: string | null; totalDeposited: bigint | null; totalWithdrawn: bigint | null; utxoCount: bigint | null; lastSyncedAt: Date | null }) {
   return {
@@ -52,7 +54,7 @@ export const listChannelsHandler = async (ctx: Context) => {
 export const addChannelHandler = async (ctx: Context) => {
   try {
     const body = await ctx.request.body.json();
-    const { channelContractId, assetCode, assetContractId, label } = body;
+    const { channelContractId, assetCode, assetContractId, issuerAddress, label } = body;
 
     if (!channelContractId || typeof channelContractId !== "string") {
       ctx.response.status = Status.BadRequest;
@@ -111,6 +113,11 @@ export const addChannelHandler = async (ctx: Context) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    // Register asset in known_assets for future import discovery
+    try {
+      await knownAssetRepo.upsert(assetCode.trim(), (issuerAddress || "").trim());
+    } catch { /* best effort */ }
 
     LOG.info("Channel added", { channelContractId, assetCode });
 

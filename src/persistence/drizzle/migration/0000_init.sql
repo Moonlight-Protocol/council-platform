@@ -119,3 +119,12 @@ CREATE TABLE IF NOT EXISTS provider_join_requests (
   updated_by TEXT,
   deleted_at TIMESTAMPTZ
 );
+
+-- Known assets (registry of all assets ever enabled via the UI)
+CREATE TABLE IF NOT EXISTS known_assets (
+  id TEXT PRIMARY KEY,
+  asset_code TEXT NOT NULL,
+  issuer_address TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_known_asset ON known_assets(asset_code, issuer_address);

@@ -12,16 +12,12 @@ const metadataRepo = new CouncilMetadataRepository(drizzleClient);
  */
 export const getMetadataHandler = async (ctx: Context) => {
   try {
-    let metadata = await metadataRepo.getConfig();
+    const metadata = await metadataRepo.getConfig();
 
     if (!metadata) {
-      metadata = await metadataRepo.upsert({
-        name: "Unnamed Council",
-        channelAuthId: CHANNEL_AUTH_ID,
-        councilPublicKey: COUNCIL_SIGNER.publicKey(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      ctx.response.status = Status.NotFound;
+      ctx.response.body = { message: "No council metadata found" };
+      return;
     }
 
     ctx.response.status = Status.OK;
@@ -51,7 +47,7 @@ export const getMetadataHandler = async (ctx: Context) => {
 export const putMetadataHandler = async (ctx: Context) => {
   try {
     const body = await ctx.request.body.json();
-    const { name, description, contactEmail } = body;
+    const { name, description, contactEmail, channelAuthId: bodyChannelAuthId } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       ctx.response.status = Status.BadRequest;
@@ -87,15 +83,20 @@ export const putMetadataHandler = async (ctx: Context) => {
       return;
     }
 
-    const metadata = await metadataRepo.upsert({
+    // Use the authenticated user's public key from the JWT, not the env config
+    const sessionPublicKey = (ctx.state.session as { sub: string })?.sub;
+
+    // Only include channelAuthId/councilPublicKey if explicitly provided,
+    // so inline metadata edits don't overwrite them with env defaults
+    const updateData: Record<string, unknown> = {
       name: name.trim(),
       description: description?.trim() ?? null,
       contactEmail: contactEmail?.trim() ?? null,
-      channelAuthId: CHANNEL_AUTH_ID,
-      councilPublicKey: COUNCIL_SIGNER.publicKey(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    };
+    if (bodyChannelAuthId) updateData.channelAuthId = bodyChannelAuthId.trim();
+    if (sessionPublicKey) updateData.councilPublicKey = sessionPublicKey;
+
+    const metadata = await metadataRepo.upsert(updateData);
 
     LOG.info("Council metadata updated", { name: metadata.name });
 

@@ -6,3 +6,4 @@ export * from "@/persistence/drizzle/entity/council-provider.entity.ts";
 export * from "@/persistence/drizzle/entity/custodial-user.entity.ts";
 export * from "@/persistence/drizzle/entity/council-escrow.entity.ts";
 export * from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
+export * from "@/persistence/drizzle/entity/known-asset.entity.ts";

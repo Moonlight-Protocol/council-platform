@@ -6,6 +6,7 @@ import { CouncilChannelRepository } from "@/persistence/drizzle/repository/counc
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
 import { postJoinRequestHandler } from "@/http/v1/public/join-request.ts";
+import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
 import { LOG } from "@/config/logger.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
@@ -116,11 +117,33 @@ const getPublicChannels = async (ctx: Context) => {
   }
 };
 
+const knownAssetRepo = new KnownAssetRepository(drizzleClient);
+
+/**
+ * GET /public/known-assets
+ * Lists all assets ever enabled via the UI. Used for import discovery.
+ */
+const getKnownAssets = async (ctx: Context) => {
+  try {
+    const assets = await knownAssetRepo.listAll();
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Known assets retrieved",
+      data: assets.map((a) => ({ assetCode: a.assetCode, issuerAddress: a.issuerAddress })),
+    };
+  } catch (error) {
+    LOG.error("Failed to list known assets", { error: error instanceof Error ? error.message : String(error) });
+    ctx.response.status = Status.InternalServerError;
+    ctx.response.body = { message: "Failed to retrieve known assets" };
+  }
+};
+
 const publicRouter = new Router();
 
 publicRouter.get("/public/council", getCouncilSummary);
 publicRouter.get("/public/providers", getPublicProviders);
 publicRouter.get("/public/channels", getPublicChannels);
+publicRouter.get("/public/known-assets", getKnownAssets);
 publicRouter.post("/public/provider/join-request", lowRateLimitMiddleware, postJoinRequestHandler);
 
 export default publicRouter;

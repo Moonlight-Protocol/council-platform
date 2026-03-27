@@ -33,19 +33,24 @@ export class CouncilMetadataRepository extends BaseRepository<
     return result;
   }
 
-  async upsert(data: Omit<NewCouncilMetadata, "id">): Promise<CouncilMetadata> {
+  async upsert(data: Partial<Omit<NewCouncilMetadata, "id">> | Record<string, unknown>): Promise<CouncilMetadata> {
     const existing = await this.getConfig();
     if (existing) {
+      // Only update fields that are explicitly provided (not undefined)
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined) updates[key] = value;
+      }
       const [updated] = await this.db
         .update(councilMetadata)
-        .set({ ...data, updatedAt: new Date() })
+        .set(updates)
         .where(eq(councilMetadata.id, SINGLETON_ID))
         .returning();
       return updated;
     }
     const [created] = await this.db
       .insert(councilMetadata)
-      .values({ id: SINGLETON_ID, ...data })
+      .values({ id: SINGLETON_ID, ...data } as NewCouncilMetadata)
       .returning();
     return created;
   }
