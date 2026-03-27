@@ -72,6 +72,29 @@ export const addChannelHandler = async (ctx: Context) => {
       return;
     }
 
+    if (assetCode.length > 12 || !/^[a-zA-Z0-9]+$/.test(assetCode)) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "assetCode must be 1-12 alphanumeric characters" };
+      return;
+    }
+
+    if (assetContractId && typeof assetContractId === "string" && !StrKey.isValidContractId(assetContractId)) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Invalid asset contract ID format" };
+      return;
+    }
+
+    if (label && typeof label !== "string") {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "label must be a string" };
+      return;
+    }
+    if (label && label.length > 200) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "label must be at most 200 characters" };
+      return;
+    }
+
     const existing = await channelRepo.findByContractId(channelContractId);
     if (existing) {
       ctx.response.status = Status.Conflict;
@@ -96,9 +119,17 @@ export const addChannelHandler = async (ctx: Context) => {
       message: "Channel added",
       data: formatChannel(channel),
     };
-  } catch {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = { message: "Invalid request body" };
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Invalid request body" };
+    } else {
+      LOG.error("Failed to add channel", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to add channel" };
+    }
   }
 };
 
@@ -170,7 +201,7 @@ export const getChannelHandler = async (ctx: Context) => {
 
 /**
  * DELETE /council/channels/:id
- * Removes a channel. Admin-only.
+ * Disables a channel (soft-delete). Admin-only.
  */
 export const removeChannelHandler = async (ctx: Context) => {
   try {
@@ -190,17 +221,79 @@ export const removeChannelHandler = async (ctx: Context) => {
       return;
     }
 
-    await channelRepo.delete(id);
+    await channelRepo.update(id, { deletedAt: new Date() });
 
-    LOG.info("Channel removed", { id, channelContractId: channel.channelContractId });
+    LOG.info("Channel disabled", { id, channelContractId: channel.channelContractId });
 
     ctx.response.status = Status.OK;
-    ctx.response.body = { message: "Channel removed" };
+    ctx.response.body = { message: "Channel disabled" };
   } catch (error) {
-    LOG.error("Failed to remove channel", {
+    LOG.error("Failed to disable channel", {
       error: error instanceof Error ? error.message : String(error),
     });
     ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to remove channel" };
+    ctx.response.body = { message: "Failed to disable channel" };
+  }
+};
+
+/**
+ * POST /council/channels/:id/enable
+ * Re-enables a previously disabled channel. Admin-only.
+ */
+export const enableChannelHandler = async (ctx: Context) => {
+  try {
+    const params = (ctx as unknown as { params?: RouteParams }).params;
+    const id = params?.id;
+
+    if (!id) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Channel ID is required" };
+      return;
+    }
+
+    const channel = await channelRepo.findByIdIncludeDeleted(id);
+    if (!channel || !channel.deletedAt) {
+      ctx.response.status = Status.NotFound;
+      ctx.response.body = { message: "Disabled channel not found" };
+      return;
+    }
+
+    await channelRepo.restore(id);
+
+    LOG.info("Channel re-enabled", { id, channelContractId: channel.channelContractId });
+
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Channel re-enabled",
+      data: formatChannel({ ...channel, deletedAt: null } as typeof channel),
+    };
+  } catch (error) {
+    LOG.error("Failed to re-enable channel", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    ctx.response.status = Status.InternalServerError;
+    ctx.response.body = { message: "Failed to re-enable channel" };
+  }
+};
+
+/**
+ * GET /council/channels/disabled
+ * Lists disabled channels. Admin-only.
+ */
+export const listDisabledChannelsHandler = async (ctx: Context) => {
+  try {
+    const channels = await channelRepo.listDisabled();
+
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Disabled channels retrieved",
+      data: channels.map(formatChannel),
+    };
+  } catch (error) {
+    LOG.error("Failed to list disabled channels", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    ctx.response.status = Status.InternalServerError;
+    ctx.response.body = { message: "Failed to retrieve disabled channels" };
   }
 };

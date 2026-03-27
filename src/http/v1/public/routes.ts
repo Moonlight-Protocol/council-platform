@@ -4,6 +4,8 @@ import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/coun
 import { CouncilJurisdictionRepository } from "@/persistence/drizzle/repository/council-jurisdiction.repository.ts";
 import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
+import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
+import { postJoinRequestHandler } from "@/http/v1/public/join-request.ts";
 import { LOG } from "@/config/logger.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
@@ -33,7 +35,6 @@ const getCouncilSummary = async (ctx: Context) => {
           ? {
               name: metadata.name,
               description: metadata.description,
-              website: metadata.website,
               contactEmail: metadata.contactEmail,
               channelAuthId: metadata.channelAuthId,
               councilPublicKey: metadata.councilPublicKey,
@@ -120,5 +121,6 @@ const publicRouter = new Router();
 publicRouter.get("/public/council", getCouncilSummary);
 publicRouter.get("/public/providers", getPublicProviders);
 publicRouter.get("/public/channels", getPublicChannels);
+publicRouter.post("/public/provider/join-request", lowRateLimitMiddleware, postJoinRequestHandler);
 
 export default publicRouter;

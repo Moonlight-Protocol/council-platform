@@ -1,6 +1,5 @@
 import { type Context, Status } from "@oak/oak";
 import { verifyCouncilChallenge } from "@/core/service/auth/council-auth.ts";
-import { COUNCIL_SIGNER, NETWORK_CONFIG } from "@/config/env.ts";
 import generateJwt from "@/core/service/auth/generate-jwt.ts";
 import { LOG } from "@/config/logger.ts";
 
@@ -16,8 +15,6 @@ export const postVerifyHandler = async (ctx: Context) => {
     }
 
     const { token } = await verifyCouncilChallenge(nonce, signature, publicKey, {
-      councilPublicKey: COUNCIL_SIGNER.publicKey(),
-      horizonUrl: NETWORK_CONFIG.horizonUrl as string | undefined,
       generateToken: (subject, sessionId) => generateJwt(subject, sessionId, { type: "admin" }),
     });
 

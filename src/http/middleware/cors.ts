@@ -1,27 +1,32 @@
 import type { Context, Next } from "@oak/oak";
+import { MODE } from "@/config/env.ts";
 
-const ALLOWED_ORIGINS = [
+const PRODUCTION_ORIGINS = [
   "https://moonlight-council-console.fly.storage.tigris.dev",
   "https://moonlight-network-dashboard.fly.storage.tigris.dev",
 ];
 
-if (Deno.env.get("MODE") === "development") {
-  ALLOWED_ORIGINS.push(
-    "http://localhost:3000", "http://localhost:3010", "http://localhost:3020",
-    "http://localhost:3050", "http://localhost:3060",
-  );
+const DEV_ORIGINS = [
+  "http://localhost:3000", "http://localhost:3010", "http://localhost:3020",
+  "http://localhost:3030", "http://localhost:3050", "http://localhost:3060",
+];
+
+function isAllowedOrigin(origin: string): boolean {
+  if (PRODUCTION_ORIGINS.includes(origin)) return true;
+  if (MODE === "development" && DEV_ORIGINS.includes(origin)) return true;
+  return false;
 }
 
 function setCorsHeaders(ctx: Context, origin: string) {
   ctx.response.headers.set("Access-Control-Allow-Origin", origin);
-  ctx.response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  ctx.response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   ctx.response.headers.set("Access-Control-Max-Age", "86400");
 }
 
 export async function corsMiddleware(ctx: Context, next: Next) {
   const origin = ctx.request.headers.get("Origin");
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin);
+  const allowed = origin && isAllowedOrigin(origin);
 
   if (ctx.request.method === "OPTIONS" && allowed) {
     setCorsHeaders(ctx, origin);

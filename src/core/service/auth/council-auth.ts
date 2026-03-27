@@ -31,8 +31,6 @@ export function createCouncilChallenge(publicKey: string): { nonce: string } {
 }
 
 export interface CouncilAuthConfig {
-  councilPublicKey: string;
-  horizonUrl?: string;
   generateToken: (subject: string, sessionId: string) => Promise<string>;
 }
 
@@ -104,12 +102,6 @@ export async function verifyCouncilChallenge(
     // Signature verified — consume the nonce (one-time use)
     pendingChallenges.delete(nonce);
 
-    span.addEvent("checking_signer_authorization");
-    const isAuth = await isAuthorizedSigner(publicKey, config.councilPublicKey, config.horizonUrl);
-    if (!isAuth) {
-      throw new Error("Signer is not authorized on the council account");
-    }
-
     span.addEvent("issuing_jwt");
     const hashBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(nonce)));
     const hashedSessionId = Array.from(hashBytes.slice(0, 16)).map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -118,34 +110,6 @@ export async function verifyCouncilChallenge(
     LOG.info("Council auth successful", { publicKey });
     return { token };
   });
-}
-
-async function isAuthorizedSigner(
-  signerKey: string,
-  accountId: string,
-  horizonUrl?: string,
-): Promise<boolean> {
-  if (signerKey === accountId) return true;
-  if (!horizonUrl) {
-    LOG.warn("No Horizon URL configured, falling back to direct key match only");
-    return false;
-  }
-  try {
-    const baseUrl = horizonUrl.replace(/\/+$/, "");
-    const response = await fetch(`${baseUrl}/accounts/${accountId}`);
-    if (!response.ok) {
-      LOG.error("Failed to fetch account from Horizon", { status: response.status, accountId });
-      return false;
-    }
-    const accountData = await response.json();
-    const signers = accountData.signers as Array<{ key: string; weight: number }>;
-    return signers.some((s) => s.key === signerKey && s.weight > 0);
-  } catch (error) {
-    LOG.error("Failed to verify signer authorization", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return false;
-  }
 }
 
 function cleanupExpiredChallenges(): void {

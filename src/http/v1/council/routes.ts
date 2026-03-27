@@ -2,7 +2,7 @@ import { Router } from "@oak/oak";
 import { jwtMiddleware } from "@/http/middleware/auth/index.ts";
 import { requireAdminMiddleware } from "@/http/middleware/auth/require-admin.ts";
 import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
-import { getMetadataHandler, putMetadataHandler } from "@/http/v1/council/metadata.ts";
+import { getMetadataHandler, putMetadataHandler, deleteMetadataHandler } from "@/http/v1/council/metadata.ts";
 import {
   listJurisdictionsHandler,
   addJurisdictionHandler,
@@ -13,6 +13,8 @@ import {
   addChannelHandler,
   getChannelHandler,
   removeChannelHandler,
+  enableChannelHandler,
+  listDisabledChannelsHandler,
 } from "@/http/v1/council/channels.ts";
 import {
   listProvidersHandler,
@@ -30,23 +32,36 @@ import {
   getEscrowSummaryHandler,
   postEscrowReleaseHandler,
 } from "@/http/v1/council/escrow.ts";
+import {
+  listJoinRequestsHandler,
+  approveJoinRequestHandler,
+  rejectJoinRequestHandler,
+} from "@/http/v1/council/join-requests.ts";
 
 const councilRouter = new Router();
 
 // Metadata (admin-only for writes)
 councilRouter.get("/council/metadata", jwtMiddleware, requireAdminMiddleware, getMetadataHandler);
 councilRouter.put("/council/metadata", jwtMiddleware, requireAdminMiddleware, putMetadataHandler);
+councilRouter.delete("/council/metadata", jwtMiddleware, requireAdminMiddleware, deleteMetadataHandler);
 
 // Jurisdictions (admin-only)
 councilRouter.get("/council/jurisdictions", jwtMiddleware, requireAdminMiddleware, listJurisdictionsHandler);
 councilRouter.post("/council/jurisdictions", jwtMiddleware, requireAdminMiddleware, addJurisdictionHandler);
 councilRouter.delete("/council/jurisdictions/:code", jwtMiddleware, requireAdminMiddleware, removeJurisdictionHandler);
 
-// Channels (admin-only)
+// Channels (admin-only) — static routes before parameterized
 councilRouter.get("/council/channels", jwtMiddleware, requireAdminMiddleware, listChannelsHandler);
 councilRouter.post("/council/channels", jwtMiddleware, requireAdminMiddleware, addChannelHandler);
+councilRouter.get("/council/channels/disabled", jwtMiddleware, requireAdminMiddleware, listDisabledChannelsHandler);
 councilRouter.get("/council/channels/:id", jwtMiddleware, requireAdminMiddleware, getChannelHandler);
 councilRouter.delete("/council/channels/:id", jwtMiddleware, requireAdminMiddleware, removeChannelHandler);
+councilRouter.post("/council/channels/:id/enable", jwtMiddleware, requireAdminMiddleware, enableChannelHandler);
+
+// Join requests (admin-only)
+councilRouter.get("/council/provider-requests", jwtMiddleware, requireAdminMiddleware, listJoinRequestsHandler);
+councilRouter.post("/council/provider-requests/:id/approve", jwtMiddleware, requireAdminMiddleware, approveJoinRequestHandler);
+councilRouter.post("/council/provider-requests/:id/reject", jwtMiddleware, requireAdminMiddleware, rejectJoinRequestHandler);
 
 // Providers (admin-only)
 councilRouter.get("/council/providers", jwtMiddleware, requireAdminMiddleware, listProvidersHandler);
