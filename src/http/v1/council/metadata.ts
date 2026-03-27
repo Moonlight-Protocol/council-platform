@@ -90,9 +90,9 @@ export const putMetadataHandler = async (ctx: Context) => {
     // so inline metadata edits don't overwrite them with env defaults
     const updateData: Record<string, unknown> = {
       name: name.trim(),
-      description: description?.trim() ?? null,
-      contactEmail: contactEmail?.trim() ?? null,
     };
+    if (description !== undefined) updateData.description = description?.trim() ?? null;
+    if (contactEmail !== undefined) updateData.contactEmail = contactEmail?.trim() ?? null;
     if (bodyChannelAuthId) updateData.channelAuthId = bodyChannelAuthId.trim();
     if (sessionPublicKey) updateData.councilPublicKey = sessionPublicKey;
 
