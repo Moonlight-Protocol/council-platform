@@ -1,0 +1,75 @@
+/**
+ * Integration tests for CouncilProviderRepository.
+ *
+ * Run with: deno test --allow-all --config tests/deno.json tests/integration/repository/council-provider.repository.test.ts
+ */
+import { assertEquals, assertExists } from "@std/assert";
+import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
+import {
+  drizzleClient,
+  resetDb,
+  ensureInitialized,
+  seedProvider,
+  PROVIDER_KEYPAIR,
+  ProviderStatus,
+} from "../../test_helpers.ts";
+import { Keypair } from "stellar-sdk";
+
+const repo = new CouncilProviderRepository(drizzleClient);
+
+Deno.test("findByPublicKey - returns correct provider", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const pk = PROVIDER_KEYPAIR.publicKey();
+  const provider = await seedProvider({ publicKey: pk });
+
+  const found = await repo.findByPublicKey(pk);
+  assertExists(found);
+  assertEquals(found.id, provider.id);
+  assertEquals(found.publicKey, pk);
+});
+
+Deno.test("findByPublicKey - returns undefined for non-existent", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const found = await repo.findByPublicKey(Keypair.random().publicKey());
+  assertEquals(found, undefined);
+});
+
+Deno.test("listActive - returns only ACTIVE providers", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.REMOVED });
+
+  const active = await repo.listActive();
+  assertEquals(active.length, 2);
+  for (const p of active) {
+    assertEquals(p.status, "ACTIVE");
+  }
+});
+
+Deno.test("listAll - returns all non-deleted providers", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.REMOVED });
+
+  const all = await repo.listAll();
+  assertEquals(all.length, 2);
+});
+
+Deno.test("update - modifies fields", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const provider = await seedProvider({ label: "Original" });
+
+  const updated = await repo.update(provider.id, { label: "Updated" });
+  assertEquals(updated.label, "Updated");
+});
