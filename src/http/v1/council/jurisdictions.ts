@@ -82,9 +82,15 @@ export const addJurisdictionHandler = async (ctx: Context) => {
         label: jurisdiction.label,
       },
     };
-  } catch {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = { message: "Invalid request body" };
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Invalid request body" };
+    } else {
+      LOG.error("Failed to add jurisdiction", { error: error instanceof Error ? error.message : String(error) });
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to add jurisdiction" };
+    }
   }
 };
 
