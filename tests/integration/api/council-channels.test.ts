@@ -232,3 +232,93 @@ Deno.test("GET /council/channels/disabled - lists disabled channels", async () =
   assertEquals(res.body.data.length, 1);
   assertEquals(res.body.data[0].channelContractId, TEST_CONTRACT_ID);
 });
+
+// ---------------------------------------------------------------------------
+// POST /council/channels - additional validation
+// ---------------------------------------------------------------------------
+
+Deno.test("POST /council/channels - rejects assetCode over 12 chars", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const { ctx, getResponse } = createMockContext({
+    method: "POST",
+    body: { channelContractId: TEST_CONTRACT_ID, assetCode: "TOOLONGASSETCODE" },
+    state: { ...adminState },
+  });
+  await addChannelHandler(ctx);
+
+  const res = getResponse();
+  assertEquals(res.status, 400);
+  assertEquals(res.body.message, "assetCode must be 1-12 alphanumeric characters");
+});
+
+Deno.test("POST /council/channels - rejects assetCode with special characters", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const { ctx, getResponse } = createMockContext({
+    method: "POST",
+    body: { channelContractId: TEST_CONTRACT_ID, assetCode: "USD$" },
+    state: { ...adminState },
+  });
+  await addChannelHandler(ctx);
+
+  const res = getResponse();
+  assertEquals(res.status, 400);
+  assertEquals(res.body.message, "assetCode must be 1-12 alphanumeric characters");
+});
+
+Deno.test("POST /council/channels - rejects label over 200 chars", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const { ctx, getResponse } = createMockContext({
+    method: "POST",
+    body: { channelContractId: TEST_CONTRACT_ID, assetCode: "XLM", label: "x".repeat(201) },
+    state: { ...adminState },
+  });
+  await addChannelHandler(ctx);
+
+  const res = getResponse();
+  assertEquals(res.status, 400);
+  assertEquals(res.body.message, "label must be at most 200 characters");
+});
+
+Deno.test("POST /council/channels - rejects malformed JSON", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const { ctx, getResponse } = createMockContext({
+    method: "POST",
+    body: undefined,
+    state: { ...adminState },
+  });
+  await addChannelHandler(ctx);
+
+  const res = getResponse();
+  assertEquals(res.status, 400);
+  assertEquals(res.body.message, "Invalid request body");
+});
+
+// ---------------------------------------------------------------------------
+// POST /council/channels/:id/enable - additional cases
+// ---------------------------------------------------------------------------
+
+Deno.test("POST /council/channels/:id/enable - returns 404 for active channel", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
+
+  const { ctx, getResponse } = createMockContext({
+    method: "POST",
+    params: { id: channel.id },
+    state: { ...adminState },
+  });
+  await enableChannelHandler(ctx);
+
+  const res = getResponse();
+  assertEquals(res.status, 404);
+  assertEquals(res.body.message, "Disabled channel not found");
+});

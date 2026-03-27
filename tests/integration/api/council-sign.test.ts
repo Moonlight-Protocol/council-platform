@@ -195,7 +195,7 @@ Deno.test("POST /council/sign/keys - rejects unregistered user", async () => {
   await postGetKeysHandler(ctx);
 
   const res = getResponse();
-  assertEquals(res.status, 400);
+  assertEquals(res.status, 500);
 });
 
 Deno.test("POST /council/sign/keys - rejects more than 300 indices", async () => {

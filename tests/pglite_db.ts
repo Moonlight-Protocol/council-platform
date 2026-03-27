@@ -123,6 +123,14 @@ const MIGRATION = `
     deleted_at TIMESTAMPTZ
   );
 
+  CREATE TABLE IF NOT EXISTS known_assets (
+    id TEXT PRIMARY KEY,
+    asset_code TEXT NOT NULL,
+    issuer_address TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_known_asset_code_issuer ON known_assets(asset_code, issuer_address);
+
   CREATE TABLE IF NOT EXISTS provider_join_requests (
     id TEXT PRIMARY KEY,
     public_key TEXT NOT NULL,
@@ -186,7 +194,8 @@ export async function resetDb(): Promise<void> {
       council_providers,
       council_channels,
       council_jurisdictions,
-      council_metadata
+      council_metadata,
+      known_assets
     CASCADE;
   `);
 }

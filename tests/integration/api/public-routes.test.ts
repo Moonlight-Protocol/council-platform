@@ -39,6 +39,9 @@ Deno.test("publicRouter registers all expected routes", () => {
   const channels = routes.find((r) => r.path === "/public/channels" && r.methods.includes("GET"));
   assertExists(channels, "GET /public/channels should be registered");
 
+  const knownAssets = routes.find((r) => r.path === "/public/known-assets" && r.methods.includes("GET"));
+  assertExists(knownAssets, "GET /public/known-assets should be registered");
+
   const joinReq = routes.find(
     (r) => r.path === "/public/provider/join-request" && r.methods.includes("POST"),
   );
