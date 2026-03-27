@@ -1,7 +1,6 @@
 import { Router, type Context, Status } from "@oak/oak";
 import { Keypair } from "stellar-sdk";
 import { createCouncilChallenge, verifyCouncilChallenge } from "@/core/service/auth/council-auth.ts";
-import { COUNCIL_SIGNER, NETWORK_CONFIG } from "@/config/env.ts";
 import generateJwt from "@/core/service/auth/generate-jwt.ts";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
@@ -83,8 +82,6 @@ const postProviderVerifyHandler = async (ctx: Context) => {
     }
 
     const { token } = await verifyCouncilChallenge(nonce, signature, publicKey, {
-      councilPublicKey: COUNCIL_SIGNER.publicKey(),
-      horizonUrl: NETWORK_CONFIG.horizonUrl as string | undefined,
       generateToken: (subject, sessionId) =>
         generateJwt(subject, sessionId, { type: "provider" }),
     });

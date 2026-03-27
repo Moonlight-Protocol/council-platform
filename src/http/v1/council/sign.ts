@@ -91,11 +91,16 @@ export const postRegisterUserHandler = async (ctx: Context) => {
       data: result,
     };
   } catch (error) {
-    LOG.error("Failed to register custodial user", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = { message: "Failed to register user" };
+    if (error instanceof SyntaxError) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Invalid request body" };
+    } else {
+      LOG.error("Failed to register custodial user", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to register user" };
+    }
   }
 };
 
@@ -140,8 +145,16 @@ export const postGetKeysHandler = async (ctx: Context) => {
       data: { publicKeys },
     };
   } catch (error) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = { message: error instanceof Error ? error.message : "Invalid request" };
+    if (error instanceof SyntaxError) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Invalid request body" };
+    } else {
+      LOG.error("Failed to derive public keys", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to derive public keys" };
+    }
   }
 };
 

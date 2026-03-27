@@ -127,11 +127,16 @@ export const postEscrowHandler = async (ctx: Context) => {
       data: result,
     };
   } catch (error) {
-    LOG.error("Failed to create escrow", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = { message: "Failed to create escrow" };
+    if (error instanceof SyntaxError) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Invalid request body" };
+    } else {
+      LOG.error("Failed to create escrow", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to create escrow" };
+    }
   }
 };
 
@@ -214,10 +219,15 @@ export const postEscrowReleaseHandler = async (ctx: Context) => {
       },
     };
   } catch (error) {
-    LOG.error("Failed to release escrow", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = { message: "Failed to release escrow" };
+    if (error instanceof SyntaxError) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "Invalid request body" };
+    } else {
+      LOG.error("Failed to release escrow", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to release escrow" };
+    }
   }
 };
