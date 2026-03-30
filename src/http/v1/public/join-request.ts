@@ -3,18 +3,56 @@ import { Keypair } from "stellar-sdk";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { JoinRequestStatus } from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
+import { verifyPayload, type SignedPayload } from "@/core/crypto/signed-payload.ts";
 import { LOG } from "@/config/logger.ts";
 
 const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
 
+interface JoinRequestPayload {
+  publicKey: string;
+  label?: string;
+  contactEmail?: string;
+  jurisdictions?: string[];
+  callbackEndpoint?: string;
+}
+
 /**
  * POST /public/provider/join-request
  * Submit a join request. No auth required.
+ * Accepts either a plain body or a SignedPayload envelope.
  */
 export const postJoinRequestHandler = async (ctx: Context) => {
   try {
     const body = await ctx.request.body.json();
-    const { publicKey, label, contactEmail } = body;
+
+    // Determine if this is a signed envelope or a plain request
+    let data: JoinRequestPayload;
+    let signature: string | null = null;
+
+    if (body.payload && body.signature && body.publicKey) {
+      // Signed envelope from provider-platform
+      const envelope = body as SignedPayload<JoinRequestPayload>;
+      const valid = await verifyPayload(envelope);
+      if (!valid) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Invalid signature" };
+        return;
+      }
+      data = envelope.payload;
+      signature = envelope.signature;
+
+      // Ensure envelope publicKey matches payload publicKey
+      if (envelope.publicKey !== data.publicKey) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Signer does not match payload publicKey" };
+        return;
+      }
+    } else {
+      // Plain request (backwards-compatible with council-console #/join form)
+      data = body as JoinRequestPayload;
+    }
+
+    const { publicKey, label, contactEmail, jurisdictions, callbackEndpoint } = data;
 
     if (!publicKey || typeof publicKey !== "string") {
       ctx.response.status = Status.BadRequest;
@@ -52,6 +90,40 @@ export const postJoinRequestHandler = async (ctx: Context) => {
       return;
     }
 
+    if (jurisdictions && !Array.isArray(jurisdictions)) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "jurisdictions must be an array of country codes" };
+      return;
+    }
+    if (jurisdictions && jurisdictions.length > 50) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "jurisdictions must have at most 50 entries" };
+      return;
+    }
+
+    if (callbackEndpoint && typeof callbackEndpoint !== "string") {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "callbackEndpoint must be a string" };
+      return;
+    }
+    if (callbackEndpoint && callbackEndpoint.length > 500) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "callbackEndpoint must be at most 500 characters" };
+      return;
+    }
+    if (callbackEndpoint) {
+      try {
+        const parsed = new URL(callbackEndpoint);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          throw new Error("bad protocol");
+        }
+      } catch {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "callbackEndpoint must be a valid HTTP(S) URL" };
+        return;
+      }
+    }
+
     // Check for existing pending request
     const existing = await joinRequestRepo.findPendingByPublicKey(publicKey);
     if (existing) {
@@ -65,12 +137,15 @@ export const postJoinRequestHandler = async (ctx: Context) => {
       publicKey,
       label: label?.trim() ?? null,
       contactEmail: contactEmail?.trim() ?? null,
+      jurisdictions: jurisdictions ? JSON.stringify(jurisdictions) : null,
+      callbackEndpoint: callbackEndpoint?.trim() ?? null,
+      signature,
       status: JoinRequestStatus.PENDING,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    LOG.info("Join request submitted", { publicKey });
+    LOG.info("Join request submitted", { publicKey, signed: !!signature });
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
