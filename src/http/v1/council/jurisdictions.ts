@@ -63,13 +63,23 @@ export const addJurisdictionHandler = async (ctx: Context) => {
       return;
     }
 
-    const jurisdiction = await jurisdictionRepo.create({
-      id: crypto.randomUUID(),
-      countryCode: code,
-      label: label?.trim() ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    // Check for a soft-deleted record with the same country code and restore it
+    const deleted = await jurisdictionRepo.findDeletedByCountryCode(code);
+    let jurisdiction;
+    if (deleted) {
+      jurisdiction = await jurisdictionRepo.update(deleted.id, {
+        deletedAt: null,
+        label: label?.trim() ?? deleted.label,
+      });
+    } else {
+      jurisdiction = await jurisdictionRepo.create({
+        id: crypto.randomUUID(),
+        countryCode: code,
+        label: label?.trim() ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
 
     LOG.info("Jurisdiction added", { countryCode: code });
 

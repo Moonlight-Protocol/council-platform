@@ -1,4 +1,4 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
   councilJurisdiction,
@@ -24,6 +24,20 @@ export class CouncilJurisdictionRepository extends BaseRepository<
         and(
           eq(councilJurisdiction.countryCode, code.toUpperCase()),
           isNull(councilJurisdiction.deletedAt),
+        ),
+      )
+      .limit(1);
+    return result;
+  }
+
+  async findDeletedByCountryCode(code: string): Promise<CouncilJurisdiction | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(councilJurisdiction)
+      .where(
+        and(
+          eq(councilJurisdiction.countryCode, code.toUpperCase()),
+          isNotNull(councilJurisdiction.deletedAt),
         ),
       )
       .limit(1);
