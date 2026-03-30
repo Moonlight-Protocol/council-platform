@@ -1,7 +1,6 @@
 import { type Context, Status } from "@oak/oak";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
-import { CHANNEL_AUTH_ID, COUNCIL_SIGNER } from "@/config/env.ts";
 import { LOG } from "@/config/logger.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
@@ -47,7 +46,7 @@ export const getMetadataHandler = async (ctx: Context) => {
 export const putMetadataHandler = async (ctx: Context) => {
   try {
     const body = await ctx.request.body.json();
-    const { name, description, contactEmail, channelAuthId: bodyChannelAuthId } = body;
+    const { name, description, contactEmail, channelAuthId: bodyChannelAuthId, opexPublicKey } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       ctx.response.status = Status.BadRequest;
@@ -95,6 +94,7 @@ export const putMetadataHandler = async (ctx: Context) => {
     if (contactEmail !== undefined) updateData.contactEmail = contactEmail?.trim() ?? null;
     if (bodyChannelAuthId) updateData.channelAuthId = bodyChannelAuthId.trim();
     if (sessionPublicKey) updateData.councilPublicKey = sessionPublicKey;
+    if (opexPublicKey) updateData.opexPublicKey = opexPublicKey.trim();
 
     const metadata = await metadataRepo.upsert(updateData);
 
