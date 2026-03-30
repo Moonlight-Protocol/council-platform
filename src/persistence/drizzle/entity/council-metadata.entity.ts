@@ -8,6 +8,7 @@ export const councilMetadata = pgTable("council_metadata", {
   contactEmail: text("contact_email"),
   channelAuthId: text("channel_auth_id").notNull(),
   councilPublicKey: text("council_public_key").notNull(),
+  opexPublicKey: text("opex_public_key"),
   ...createBaseColumns(),
 });
 
