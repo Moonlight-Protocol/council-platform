@@ -3,6 +3,7 @@ import { createBaseColumns } from "@/persistence/drizzle/entity/base.entity.ts";
 
 export const councilChannel = pgTable("council_channels", {
   id: text("id").primaryKey(),
+  councilId: text("council_id").notNull(),
   channelContractId: text("channel_contract_id").notNull().unique(),
   assetCode: text("asset_code").notNull(),
   assetContractId: text("asset_contract_id"),

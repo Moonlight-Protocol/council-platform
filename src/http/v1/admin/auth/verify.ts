@@ -1,7 +1,11 @@
 import { type Context, Status } from "@oak/oak";
 import { verifyCouncilChallenge } from "@/core/service/auth/council-auth.ts";
 import generateJwt from "@/core/service/auth/generate-jwt.ts";
+import { drizzleClient } from "@/persistence/drizzle/config.ts";
+import { WalletUserRepository } from "@/persistence/drizzle/repository/wallet-user.repository.ts";
 import { LOG } from "@/config/logger.ts";
+
+const walletUserRepo = new WalletUserRepository(drizzleClient);
 
 export const postVerifyHandler = async (ctx: Context) => {
   try {
@@ -17,6 +21,8 @@ export const postVerifyHandler = async (ctx: Context) => {
     const { token } = await verifyCouncilChallenge(nonce, signature, publicKey, {
       generateToken: (subject, sessionId) => generateJwt(subject, sessionId, { type: "admin" }),
     });
+
+    await walletUserRepo.findOrCreate(publicKey);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {

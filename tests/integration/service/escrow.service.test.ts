@@ -37,6 +37,7 @@ Deno.test("createEscrow - creates a HELD escrow record", async () => {
   const provider = Keypair.random().publicKey();
 
   const { escrowId } = await createEscrow({
+    councilId: "default",
     senderAddress: sender,
     recipientAddress: recipient,
     amount: 10_000_000n,
@@ -63,6 +64,7 @@ Deno.test("createEscrow - rejects zero amount", async () => {
   await assertRejects(
     () =>
       createEscrow({
+        councilId: "default",
         senderAddress: testAddress(),
         recipientAddress: testAddress(),
         amount: 0n,

@@ -23,6 +23,7 @@ Deno.test("create - inserts request with PENDING status", async () => {
   const pk = Keypair.random().publicKey();
   const result = await repo.create({
     id: crypto.randomUUID(),
+    councilId: "default",
     publicKey: pk,
     label: "New Provider",
     contactEmail: "new@example.com",
@@ -40,7 +41,7 @@ Deno.test("findPendingByPublicKey - returns pending request", async () => {
   const pk = Keypair.random().publicKey();
   await seedJoinRequest({ publicKey: pk, status: JoinRequestStatus.PENDING });
 
-  const found = await repo.findPendingByPublicKey(pk);
+  const found = await repo.findPendingByPublicKey("default", pk);
   assertExists(found);
   assertEquals(found.publicKey, pk);
   assertEquals(found.status, "PENDING");
@@ -53,7 +54,7 @@ Deno.test("findPendingByPublicKey - ignores approved/rejected requests", async (
   const pk = Keypair.random().publicKey();
   await seedJoinRequest({ publicKey: pk, status: JoinRequestStatus.APPROVED });
 
-  const found = await repo.findPendingByPublicKey(pk);
+  const found = await repo.findPendingByPublicKey("default", pk);
   assertEquals(found, undefined);
 });
 
@@ -66,7 +67,7 @@ Deno.test("listPending - returns only pending requests", async () => {
   await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.APPROVED });
   await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.REJECTED });
 
-  const pending = await repo.listPending();
+  const pending = await repo.listPending("default");
   assertEquals(pending.length, 2);
   for (const r of pending) {
     assertEquals(r.status, "PENDING");
@@ -81,7 +82,7 @@ Deno.test("listAll - returns all non-deleted requests", async () => {
   await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.APPROVED });
   await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.REJECTED });
 
-  const all = await repo.listAll();
+  const all = await repo.listAll("default");
   assertEquals(all.length, 3);
 });
 

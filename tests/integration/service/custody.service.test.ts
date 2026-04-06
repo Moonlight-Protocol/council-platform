@@ -27,6 +27,7 @@ Deno.test("registerCustodialUser - creates user and returns derived key", async 
 
   const externalId = Keypair.random().publicKey();
   const result = await registerCustodialUser({
+    councilId: "default",
     externalId,
     channelContractId: CONTRACT_ID,
   });
@@ -42,11 +43,13 @@ Deno.test("registerCustodialUser - returns existing user for duplicate registrat
 
   const externalId = Keypair.random().publicKey();
   const first = await registerCustodialUser({
+    councilId: "default",
     externalId,
     channelContractId: CONTRACT_ID,
   });
 
   const second = await registerCustodialUser({
+    councilId: "default",
     externalId,
     channelContractId: CONTRACT_ID,
   });
@@ -63,6 +66,7 @@ Deno.test("getUserPublicKeys - returns derived keys at specified indices", async
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
+    councilId: "default",
     externalId,
     channelContractId: CONTRACT_ID,
   });
@@ -81,6 +85,7 @@ Deno.test("getUserPublicKeys - returns consistent keys for same inputs", async (
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
+    councilId: "default",
     externalId,
     channelContractId: CONTRACT_ID,
   });
@@ -97,6 +102,7 @@ Deno.test("getUserPublicKeys - returns different keys for different indices", as
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
+    councilId: "default",
     externalId,
     channelContractId: CONTRACT_ID,
   });
@@ -142,6 +148,7 @@ Deno.test("getUserPublicKeys - throws for out-of-range indices", async () => {
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
+    councilId: "default",
     externalId,
     channelContractId: CONTRACT_ID,
   });

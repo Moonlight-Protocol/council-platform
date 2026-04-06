@@ -48,6 +48,7 @@ export async function getRecipientUtxos(
  * Create an escrow record. Called by PPs when sending to a non-KYC'd recipient.
  */
 export async function createEscrow(opts: {
+  councilId: string;
   senderAddress: string;
   recipientAddress: string;
   amount: bigint;
@@ -61,6 +62,7 @@ export async function createEscrow(opts: {
 
   const escrow = await escrowRepo.create({
     id: crypto.randomUUID(),
+    councilId: opts.councilId,
     senderAddress: opts.senderAddress,
     recipientAddress: opts.recipientAddress,
     amount: opts.amount,

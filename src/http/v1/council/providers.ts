@@ -1,7 +1,11 @@
 import { type Context, Status } from "@oak/oak";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
+import { requireCouncilId, requireCouncilOwnership } from "./helpers.ts";
+import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { LOG } from "@/config/logger.ts";
+
+const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 const providerRepo = new CouncilProviderRepository(drizzleClient);
 
@@ -16,20 +20,19 @@ function formatProvider(p: { id: string; publicKey: string; status: string; labe
   };
 }
 
-/**
- * GET /council/providers
- * Lists all providers registered with this council.
- * Query params: ?status=ACTIVE (optional filter)
- */
 export const listProvidersHandler = async (ctx: Context) => {
   try {
+    const councilId = requireCouncilId(ctx);
+    if (!councilId) return;
+    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+
     const statusFilter = ctx.request.url.searchParams.get("status");
 
     let providers;
     if (statusFilter === "ACTIVE") {
-      providers = await providerRepo.listActive();
+      providers = await providerRepo.listActive(councilId);
     } else {
-      providers = await providerRepo.listAll();
+      providers = await providerRepo.listAll(councilId);
     }
 
     ctx.response.status = Status.OK;
@@ -48,10 +51,6 @@ export const listProvidersHandler = async (ctx: Context) => {
 
 type RouteParams = { id?: string };
 
-/**
- * GET /council/providers/:id
- * Gets a single provider's details.
- */
 export const getProviderHandler = async (ctx: Context) => {
   try {
     const params = (ctx as unknown as { params?: RouteParams }).params;
@@ -84,11 +83,6 @@ export const getProviderHandler = async (ctx: Context) => {
   }
 };
 
-/**
- * PUT /council/providers/:id
- * Updates provider metadata (label, contact). Admin-only.
- * On-chain status is managed by the event watcher, not this endpoint.
- */
 export const updateProviderHandler = async (ctx: Context) => {
   try {
     const params = (ctx as unknown as { params?: RouteParams }).params;

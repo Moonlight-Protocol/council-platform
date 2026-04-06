@@ -13,6 +13,7 @@ export const providerStatusEnum = pgEnum("provider_status", [
 
 export const councilProvider = pgTable("council_providers", {
   id: text("id").primaryKey(),
+  councilId: text("council_id").notNull(),
   publicKey: text("public_key").notNull(), // Ed25519 Stellar address (G...)
   status: providerStatusEnum("status").notNull(),
   label: text("label"),
@@ -22,7 +23,7 @@ export const councilProvider = pgTable("council_providers", {
   removedByEvent: text("removed_by_event"),
   ...createBaseColumns(),
 }, (table) => [
-  uniqueIndex("idx_provider_public_key").on(table.publicKey),
+  uniqueIndex("idx_provider_council_pk").on(table.councilId, table.publicKey),
 ]);
 
 export type CouncilProvider = typeof councilProvider.$inferSelect;

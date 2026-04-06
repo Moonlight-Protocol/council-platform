@@ -15,6 +15,7 @@ export const escrowStatusEnum = pgEnum("escrow_status", [
 
 export const councilEscrow = pgTable("council_escrows", {
   id: text("id").primaryKey(),
+  councilId: text("council_id").notNull(),
   senderAddress: text("sender_address").notNull(),
   recipientAddress: text("recipient_address").notNull(),
   amount: bigint("amount", { mode: "bigint" }).notNull(),

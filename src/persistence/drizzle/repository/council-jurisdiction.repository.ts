@@ -16,12 +16,13 @@ export class CouncilJurisdictionRepository extends BaseRepository<
     super(db, councilJurisdiction);
   }
 
-  async findByCountryCode(code: string): Promise<CouncilJurisdiction | undefined> {
+  async findByCountryCode(councilId: string, code: string): Promise<CouncilJurisdiction | undefined> {
     const [result] = await this.db
       .select()
       .from(councilJurisdiction)
       .where(
         and(
+          eq(councilJurisdiction.councilId, councilId),
           eq(councilJurisdiction.countryCode, code.toUpperCase()),
           isNull(councilJurisdiction.deletedAt),
         ),
@@ -30,12 +31,13 @@ export class CouncilJurisdictionRepository extends BaseRepository<
     return result;
   }
 
-  async findDeletedByCountryCode(code: string): Promise<CouncilJurisdiction | undefined> {
+  async findDeletedByCountryCode(councilId: string, code: string): Promise<CouncilJurisdiction | undefined> {
     const [result] = await this.db
       .select()
       .from(councilJurisdiction)
       .where(
         and(
+          eq(councilJurisdiction.councilId, councilId),
           eq(councilJurisdiction.countryCode, code.toUpperCase()),
           isNotNull(councilJurisdiction.deletedAt),
         ),
@@ -44,11 +46,16 @@ export class CouncilJurisdictionRepository extends BaseRepository<
     return result;
   }
 
-  async listAll(): Promise<CouncilJurisdiction[]> {
+  async listAll(councilId: string): Promise<CouncilJurisdiction[]> {
     return await this.db
       .select()
       .from(councilJurisdiction)
-      .where(isNull(councilJurisdiction.deletedAt))
+      .where(
+        and(
+          eq(councilJurisdiction.councilId, councilId),
+          isNull(councilJurisdiction.deletedAt),
+        ),
+      )
       .orderBy(councilJurisdiction.countryCode);
   }
 }

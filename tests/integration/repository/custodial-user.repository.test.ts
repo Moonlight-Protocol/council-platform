@@ -68,6 +68,7 @@ Deno.test("create - inserts user", async () => {
 
   const result = await repo.create({
     id: crypto.randomUUID(),
+    councilId: "default",
     externalId: "new-user",
     channelContractId: CONTRACT_A,
     p256PublicKeyHex: "04" + "ab".repeat(64),

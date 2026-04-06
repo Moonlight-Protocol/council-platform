@@ -59,7 +59,7 @@ Deno.test("POST /council/sign/register - creates user with provider JWT", async 
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { externalId: "user-001", channelContractId: TEST_CONTRACT_ID },
+    body: { councilId: "default", externalId: "user-001", channelContractId: TEST_CONTRACT_ID },
     state: providerState(providerKp.publicKey()),
   });
   await postRegisterUserHandler(ctx);
@@ -80,7 +80,7 @@ Deno.test("POST /council/sign/register - rejects non-provider JWT", async () => 
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { externalId: "user-001", channelContractId: TEST_CONTRACT_ID },
+    body: { councilId: "default", externalId: "user-001", channelContractId: TEST_CONTRACT_ID },
     state: adminState(kp.publicKey()),
   });
   await postRegisterUserHandler(ctx);
@@ -96,7 +96,7 @@ Deno.test("POST /council/sign/register - returns same data for duplicate registr
   const providerKp = Keypair.random();
   await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
   const state = providerState(providerKp.publicKey());
-  const body = { externalId: "user-dup", channelContractId: TEST_CONTRACT_ID };
+  const body = { councilId: "default", externalId: "user-dup", channelContractId: TEST_CONTRACT_ID };
 
   // First registration
   const first = createMockContext({ method: "POST", body, state });
@@ -123,7 +123,7 @@ Deno.test("POST /council/sign/register - rejects missing externalId", async () =
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { channelContractId: TEST_CONTRACT_ID },
+    body: { councilId: "default", channelContractId: TEST_CONTRACT_ID },
     state: providerState(providerKp.publicKey()),
   });
   await postRegisterUserHandler(ctx);
@@ -148,7 +148,7 @@ Deno.test("POST /council/sign/keys - returns derived public keys", async () => {
   // Register user first
   const regCtx = createMockContext({
     method: "POST",
-    body: { externalId: "user-keys", channelContractId: TEST_CONTRACT_ID },
+    body: { councilId: "default", externalId: "user-keys", channelContractId: TEST_CONTRACT_ID },
     state,
   });
   await postRegisterUserHandler(regCtx.ctx);
@@ -158,6 +158,7 @@ Deno.test("POST /council/sign/keys - returns derived public keys", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       externalId: "user-keys",
       channelContractId: TEST_CONTRACT_ID,
       indices: [0, 1, 2],
@@ -186,6 +187,7 @@ Deno.test("POST /council/sign/keys - rejects unregistered user", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       externalId: "nonexistent-user",
       channelContractId: TEST_CONTRACT_ID,
       indices: [0],
@@ -210,6 +212,7 @@ Deno.test("POST /council/sign/keys - rejects more than 300 indices", async () =>
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       externalId: "user-x",
       channelContractId: TEST_CONTRACT_ID,
       indices,
@@ -238,7 +241,7 @@ Deno.test("POST /council/sign/spend - returns signatures for valid request", asy
   // Register user first
   const regCtx = createMockContext({
     method: "POST",
-    body: { externalId: "user-spend", channelContractId: TEST_CONTRACT_ID },
+    body: { councilId: "default", externalId: "user-spend", channelContractId: TEST_CONTRACT_ID },
     state,
   });
   await postRegisterUserHandler(regCtx.ctx);
@@ -249,6 +252,7 @@ Deno.test("POST /council/sign/spend - returns signatures for valid request", asy
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       channelContractId: TEST_CONTRACT_ID,
       spends: [
         { externalId: "user-spend", utxoIndex: 0, message: messageHex },
@@ -275,6 +279,7 @@ Deno.test("POST /council/sign/spend - rejects non-provider JWT", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       channelContractId: TEST_CONTRACT_ID,
       spends: [
         { externalId: "user-x", utxoIndex: 0, message: "aabb" },
@@ -298,6 +303,7 @@ Deno.test("POST /council/sign/spend - rejects unregistered user", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       channelContractId: TEST_CONTRACT_ID,
       spends: [
         { externalId: "nonexistent-user", utxoIndex: 0, message: "aabb" },
@@ -332,6 +338,7 @@ Deno.test("POST /council/sign/spend - rejects wrong provider for user", async ()
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       channelContractId: TEST_CONTRACT_ID,
       spends: [
         { externalId: "user-wrong-provider", utxoIndex: 0, message: "aabb" },
@@ -363,6 +370,7 @@ Deno.test("POST /council/sign/spend - rejects suspended user", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       channelContractId: TEST_CONTRACT_ID,
       spends: [
         { externalId: "user-suspended", utxoIndex: 0, message: "aabb" },
@@ -393,6 +401,7 @@ Deno.test("POST /council/sign/spend - rejects invalid hex message", async () => 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       channelContractId: TEST_CONTRACT_ID,
       spends: [
         { externalId: "user-bad-hex", utxoIndex: 0, message: "not-valid-hex" },

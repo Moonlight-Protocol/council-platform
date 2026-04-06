@@ -17,12 +17,13 @@ export class CouncilProviderRepository extends BaseRepository<
     super(db, councilProvider);
   }
 
-  async findByPublicKey(publicKey: string): Promise<CouncilProvider | undefined> {
+  async findByPublicKey(councilId: string, publicKey: string): Promise<CouncilProvider | undefined> {
     const [result] = await this.db
       .select()
       .from(councilProvider)
       .where(
         and(
+          eq(councilProvider.councilId, councilId),
           eq(councilProvider.publicKey, publicKey),
           isNull(councilProvider.deletedAt),
         ),
@@ -31,12 +32,13 @@ export class CouncilProviderRepository extends BaseRepository<
     return result;
   }
 
-  async listActive(): Promise<CouncilProvider[]> {
+  async listActive(councilId: string): Promise<CouncilProvider[]> {
     return await this.db
       .select()
       .from(councilProvider)
       .where(
         and(
+          eq(councilProvider.councilId, councilId),
           eq(councilProvider.status, ProviderStatus.ACTIVE),
           isNull(councilProvider.deletedAt),
         ),
@@ -44,11 +46,16 @@ export class CouncilProviderRepository extends BaseRepository<
       .orderBy(councilProvider.createdAt);
   }
 
-  async listAll(): Promise<CouncilProvider[]> {
+  async listAll(councilId: string): Promise<CouncilProvider[]> {
     return await this.db
       .select()
       .from(councilProvider)
-      .where(isNull(councilProvider.deletedAt))
+      .where(
+        and(
+          eq(councilProvider.councilId, councilId),
+          isNull(councilProvider.deletedAt),
+        ),
+      )
       .orderBy(councilProvider.createdAt);
   }
 }

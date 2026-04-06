@@ -4,7 +4,11 @@ import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
 import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
 import { queryChannelState } from "@/core/service/channel/channel-state.service.ts";
+import { requireCouncilId, requireCouncilOwnership } from "./helpers.ts";
+import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { LOG } from "@/config/logger.ts";
+
+const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 const channelRepo = new CouncilChannelRepository(drizzleClient);
 const knownAssetRepo = new KnownAssetRepository(drizzleClient);
@@ -25,13 +29,13 @@ function formatChannel(ch: { id: string; channelContractId: string; assetCode: s
   };
 }
 
-/**
- * GET /council/channels
- * Lists all channels governed by this council.
- */
 export const listChannelsHandler = async (ctx: Context) => {
   try {
-    const channels = await channelRepo.listAll();
+    const councilId = requireCouncilId(ctx);
+    if (!councilId) return;
+    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+
+    const channels = await channelRepo.listAll(councilId);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -47,12 +51,12 @@ export const listChannelsHandler = async (ctx: Context) => {
   }
 };
 
-/**
- * POST /council/channels
- * Registers a new channel. Admin-only.
- */
 export const addChannelHandler = async (ctx: Context) => {
   try {
+    const councilId = requireCouncilId(ctx);
+    if (!councilId) return;
+    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+
     const body = await ctx.request.body.json();
     const { channelContractId, assetCode, assetContractId, issuerAddress, label } = body;
 
@@ -97,7 +101,7 @@ export const addChannelHandler = async (ctx: Context) => {
       return;
     }
 
-    const existing = await channelRepo.findByContractId(channelContractId);
+    const existing = await channelRepo.findByContractId(councilId, channelContractId);
     if (existing) {
       ctx.response.status = Status.Conflict;
       ctx.response.body = { message: "Channel with this contract ID already exists" };
@@ -106,6 +110,7 @@ export const addChannelHandler = async (ctx: Context) => {
 
     const channel = await channelRepo.create({
       id: crypto.randomUUID(),
+      councilId,
       channelContractId,
       assetCode: assetCode.trim(),
       assetContractId: assetContractId?.trim() ?? null,
@@ -114,12 +119,11 @@ export const addChannelHandler = async (ctx: Context) => {
       updatedAt: new Date(),
     });
 
-    // Register asset in known_assets for future import discovery
     try {
       await knownAssetRepo.upsert(assetCode.trim(), (issuerAddress || "").trim());
     } catch { /* best effort */ }
 
-    LOG.info("Channel added", { channelContractId, assetCode });
+    LOG.info("Channel added", { councilId, channelContractId, assetCode });
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -142,10 +146,6 @@ export const addChannelHandler = async (ctx: Context) => {
 
 type RouteParams = { id?: string };
 
-/**
- * GET /council/channels/:id
- * Gets channel details with refreshed on-chain state.
- */
 export const getChannelHandler = async (ctx: Context) => {
   try {
     const params = (ctx as unknown as { params?: RouteParams }).params;
@@ -164,7 +164,6 @@ export const getChannelHandler = async (ctx: Context) => {
       return;
     }
 
-    // Refresh on-chain state
     try {
       const onChainState = await queryChannelState(channel.channelContractId);
 
@@ -190,7 +189,6 @@ export const getChannelHandler = async (ctx: Context) => {
         },
       };
     } catch {
-      // Return cached state if RPC fails
       ctx.response.status = Status.OK;
       ctx.response.body = {
         message: "Channel retrieved (cached state, RPC unavailable)",
@@ -206,10 +204,6 @@ export const getChannelHandler = async (ctx: Context) => {
   }
 };
 
-/**
- * DELETE /council/channels/:id
- * Disables a channel (soft-delete). Admin-only.
- */
 export const removeChannelHandler = async (ctx: Context) => {
   try {
     const params = (ctx as unknown as { params?: RouteParams }).params;
@@ -243,10 +237,6 @@ export const removeChannelHandler = async (ctx: Context) => {
   }
 };
 
-/**
- * POST /council/channels/:id/enable
- * Re-enables a previously disabled channel. Admin-only.
- */
 export const enableChannelHandler = async (ctx: Context) => {
   try {
     const params = (ctx as unknown as { params?: RouteParams }).params;
@@ -283,13 +273,13 @@ export const enableChannelHandler = async (ctx: Context) => {
   }
 };
 
-/**
- * GET /council/channels/disabled
- * Lists disabled channels. Admin-only.
- */
 export const listDisabledChannelsHandler = async (ctx: Context) => {
   try {
-    const channels = await channelRepo.listDisabled();
+    const councilId = requireCouncilId(ctx);
+    if (!councilId) return;
+    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+
+    const channels = await channelRepo.listDisabled(councilId);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {

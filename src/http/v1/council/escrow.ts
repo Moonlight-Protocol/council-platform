@@ -83,12 +83,12 @@ export const postEscrowHandler = async (ctx: Context) => {
     }
 
     const body = await ctx.request.body.json();
-    const { senderAddress, recipientAddress, amount, assetCode, channelContractId } = body;
+    const { councilId, senderAddress, recipientAddress, amount, assetCode, channelContractId } = body;
 
-    if (!senderAddress || !recipientAddress || !amount || !assetCode || !channelContractId) {
+    if (!councilId || !senderAddress || !recipientAddress || !amount || !assetCode || !channelContractId) {
       ctx.response.status = Status.BadRequest;
       ctx.response.body = {
-        message: "senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
+        message: "councilId, senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
       };
       return;
     }
@@ -113,6 +113,7 @@ export const postEscrowHandler = async (ctx: Context) => {
     }
 
     const result = await createEscrow({
+      councilId,
       senderAddress,
       recipientAddress,
       amount: amountBigInt,

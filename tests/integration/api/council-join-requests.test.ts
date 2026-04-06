@@ -14,6 +14,7 @@ import {
   resetDb,
   ensureInitialized,
   seedJoinRequest,
+  seedCouncilMetadata,
   ADMIN_KEYPAIR,
   JoinRequestStatus,
 } from "../../test_helpers.ts";
@@ -40,6 +41,7 @@ const adminState = {
 Deno.test("GET /council/provider-requests - lists all join requests", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedJoinRequest({ status: JoinRequestStatus.PENDING });
   await seedJoinRequest({ status: JoinRequestStatus.APPROVED });
@@ -48,6 +50,7 @@ Deno.test("GET /council/provider-requests - lists all join requests", async () =
   const { ctx, getResponse } = createMockContext({
     method: "GET",
     path: "/council/provider-requests",
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await listJoinRequestsHandler(ctx);
@@ -60,6 +63,7 @@ Deno.test("GET /council/provider-requests - lists all join requests", async () =
 Deno.test("GET /council/provider-requests?status=PENDING - filters pending", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedJoinRequest({ status: JoinRequestStatus.PENDING });
   await seedJoinRequest({ status: JoinRequestStatus.PENDING });
@@ -68,7 +72,7 @@ Deno.test("GET /council/provider-requests?status=PENDING - filters pending", asy
   const { ctx, getResponse } = createMockContext({
     method: "GET",
     path: "/council/provider-requests",
-    query: { status: "PENDING" },
+    query: { status: "PENDING", councilId: "default" },
     state: { ...adminState },
   });
   await listJoinRequestsHandler(ctx);
@@ -88,6 +92,7 @@ Deno.test("GET /council/provider-requests?status=PENDING - filters pending", asy
 Deno.test("POST /council/provider-requests/:id/reject - rejects a pending request", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const request = await seedJoinRequest({ status: JoinRequestStatus.PENDING });
 
@@ -107,6 +112,7 @@ Deno.test("POST /council/provider-requests/:id/reject - rejects a pending reques
 Deno.test("POST /council/provider-requests/:id/reject - returns 404 for non-existent", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -124,6 +130,7 @@ Deno.test("POST /council/provider-requests/:id/reject - returns 404 for non-exis
 Deno.test("POST /council/provider-requests/:id/reject - returns 409 for already reviewed", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const request = await seedJoinRequest({ status: JoinRequestStatus.APPROVED });
 
@@ -146,6 +153,7 @@ Deno.test("POST /council/provider-requests/:id/reject - returns 409 for already 
 Deno.test("POST /council/provider-requests/:id/approve - returns 404 for non-existent", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -163,6 +171,7 @@ Deno.test("POST /council/provider-requests/:id/approve - returns 404 for non-exi
 Deno.test("POST /council/provider-requests/:id/approve - returns 409 for already reviewed", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const request = await seedJoinRequest({ status: JoinRequestStatus.REJECTED });
 

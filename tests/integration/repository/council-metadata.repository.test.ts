@@ -13,23 +13,20 @@ import {
   seedChannel,
   seedProvider,
   seedJoinRequest,
-  seedEscrow,
-  seedCustodialUser,
   getMetadata,
   getAllChannels,
   getAllProviders,
-  getAllEscrows,
   getAllJoinRequests,
   ADMIN_KEYPAIR,
 } from "../../test_helpers.ts";
 
 const repo = new CouncilMetadataRepository(drizzleClient);
 
-Deno.test("getConfig - returns undefined on empty DB", async () => {
+Deno.test("getById - returns undefined on empty DB", async () => {
   await ensureInitialized();
   await resetDb();
 
-  const result = await repo.getConfig();
+  const result = await repo.getById("default");
   assertEquals(result, undefined);
 });
 
@@ -37,11 +34,10 @@ Deno.test("upsert - creates a new record", async () => {
   await ensureInitialized();
   await resetDb();
 
-  const result = await repo.upsert({
+  const result = await repo.upsert("default", {
     name: "Test Council",
     description: "A test council",
     contactEmail: "test@example.com",
-    channelAuthId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
     councilPublicKey: ADMIN_KEYPAIR.publicKey(),
   });
 
@@ -54,15 +50,13 @@ Deno.test("upsert - updates existing record (singleton)", async () => {
   await ensureInitialized();
   await resetDb();
 
-  await repo.upsert({
+  await repo.upsert("default", {
     name: "Original Name",
-    channelAuthId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
     councilPublicKey: ADMIN_KEYPAIR.publicKey(),
   });
 
-  const updated = await repo.upsert({
+  const updated = await repo.upsert("default", {
     name: "Updated Name",
-    channelAuthId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
     councilPublicKey: ADMIN_KEYPAIR.publicKey(),
   });
 
@@ -70,34 +64,31 @@ Deno.test("upsert - updates existing record (singleton)", async () => {
   assertEquals(updated.name, "Updated Name");
 
   // Should still be exactly one record
-  const config = await repo.getConfig();
+  const config = await repo.getById("default");
   assertEquals(config?.name, "Updated Name");
 });
 
-Deno.test("deleteAll - cascades across all tables", async () => {
+Deno.test("deleteCouncil - cascades across council tables", async () => {
   await ensureInitialized();
   await resetDb();
 
-  // Seed data in all tables
+  // Seed data in council-owned tables
   await seedCouncilMetadata();
   await seedChannel();
   await seedProvider();
   await seedJoinRequest();
-  await seedEscrow();
-  await seedCustodialUser();
 
   // Verify data exists
   const metaBefore = await getMetadata();
   assertEquals(metaBefore !== undefined, true);
 
   // Delete all
-  await repo.deleteAll();
+  await repo.deleteCouncil("default");
 
-  // Verify all tables are empty
+  // Verify council tables are empty
   const metaAfter = await getMetadata();
   assertEquals(metaAfter, undefined);
   assertEquals((await getAllChannels()).length, 0);
   assertEquals((await getAllProviders()).length, 0);
-  assertEquals((await getAllEscrows()).length, 0);
   assertEquals((await getAllJoinRequests()).length, 0);
 });

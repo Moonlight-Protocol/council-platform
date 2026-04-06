@@ -21,7 +21,11 @@ import {
 import { Keypair } from "stellar-sdk";
 
 import publicRouter from "@/http/v1/public/routes.ts";
-const joinRequestHandler = (await import("@/http/v1/public/join-request.ts")).postJoinRequestHandler;
+import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
+import { drizzleClient } from "../../test_helpers.ts";
+const { createPostJoinRequestHandler } = await import("@/http/v1/public/join-request.ts");
+const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
+const joinRequestHandler = createPostJoinRequestHandler(joinRequestRepo);
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -60,7 +64,7 @@ Deno.test("POST /public/provider/join-request - creates a join request", async (
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     path: "/public/provider/join-request",
-    body: { publicKey: pk, label: "Test Provider", contactEmail: "test@example.com" },
+    body: { publicKey: pk, councilId: "default", label: "Test Provider", contactEmail: "test@example.com" },
   });
 
   await joinRequestHandler(ctx);
@@ -80,7 +84,7 @@ Deno.test("POST /public/provider/join-request - rejects missing publicKey", asyn
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     path: "/public/provider/join-request",
-    body: { label: "No Key" },
+    body: { councilId: "default", label: "No Key" },
   });
 
   await joinRequestHandler(ctx);
@@ -97,7 +101,7 @@ Deno.test("POST /public/provider/join-request - rejects invalid Stellar key", as
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     path: "/public/provider/join-request",
-    body: { publicKey: "not-a-stellar-key" },
+    body: { publicKey: "not-a-stellar-key", councilId: "default" },
   });
 
   await joinRequestHandler(ctx);
@@ -117,7 +121,7 @@ Deno.test("POST /public/provider/join-request - rejects duplicate pending reques
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     path: "/public/provider/join-request",
-    body: { publicKey: pk },
+    body: { publicKey: pk, councilId: "default" },
   });
 
   await joinRequestHandler(ctx);
@@ -137,7 +141,7 @@ Deno.test("POST /public/provider/join-request - allows request if previous was a
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     path: "/public/provider/join-request",
-    body: { publicKey: pk, label: "Second attempt" },
+    body: { publicKey: pk, councilId: "default", label: "Second attempt" },
   });
 
   await joinRequestHandler(ctx);
@@ -155,7 +159,7 @@ Deno.test("POST /public/provider/join-request - rejects label over 200 chars", a
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     path: "/public/provider/join-request",
-    body: { publicKey: pk, label: "x".repeat(201) },
+    body: { publicKey: pk, councilId: "default", label: "x".repeat(201) },
   });
 
   await joinRequestHandler(ctx);

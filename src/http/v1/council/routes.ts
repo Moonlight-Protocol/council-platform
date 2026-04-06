@@ -2,7 +2,7 @@ import { Router } from "@oak/oak";
 import { jwtMiddleware } from "@/http/middleware/auth/index.ts";
 import { requireAdminMiddleware } from "@/http/middleware/auth/require-admin.ts";
 import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
-import { getMetadataHandler, putMetadataHandler, deleteMetadataHandler } from "@/http/v1/council/metadata.ts";
+import { getMetadataHandler, listCouncilsHandler, putMetadataHandler, deleteMetadataHandler } from "@/http/v1/council/metadata.ts";
 import {
   listJurisdictionsHandler,
   addJurisdictionHandler,
@@ -40,7 +40,8 @@ import {
 
 const councilRouter = new Router();
 
-// Metadata (admin-only for writes)
+// Councils
+councilRouter.get("/council/list", jwtMiddleware, requireAdminMiddleware, listCouncilsHandler);
 councilRouter.get("/council/metadata", jwtMiddleware, requireAdminMiddleware, getMetadataHandler);
 councilRouter.put("/council/metadata", jwtMiddleware, requireAdminMiddleware, putMetadataHandler);
 councilRouter.delete("/council/metadata", jwtMiddleware, requireAdminMiddleware, deleteMetadataHandler);
