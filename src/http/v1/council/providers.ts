@@ -69,6 +69,8 @@ export const getProviderHandler = async (ctx: Context) => {
       return;
     }
 
+    if (!await requireCouncilOwnership(ctx, provider.councilId, metadataRepo)) return;
+
     ctx.response.status = Status.OK;
     ctx.response.body = {
       message: "Provider retrieved",
@@ -100,6 +102,8 @@ export const updateProviderHandler = async (ctx: Context) => {
       ctx.response.body = { message: "Provider not found" };
       return;
     }
+
+    if (!await requireCouncilOwnership(ctx, provider.councilId, metadataRepo)) return;
 
     const body = await ctx.request.body.json();
     const { label, contactEmail } = body;

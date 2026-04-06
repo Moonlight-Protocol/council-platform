@@ -27,8 +27,16 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
       let data: JoinRequestPayload;
       let signature: string | null = null;
 
-      if (body.payload && body.signature && body.publicKey) {
-        // Signed envelope from provider-platform
+      if (
+        body.payload != null && typeof body.payload === "object" &&
+        typeof body.signature === "string" &&
+        typeof body.publicKey === "string" &&
+        typeof body.timestamp === "number"
+      ) {
+        // Signed envelope from provider-platform — discriminated by payload being
+        // an object (not a primitive) plus the presence of a numeric timestamp.
+        // A plain join request may contain fields named payload/signature/publicKey
+        // as strings, but will never have this exact shape.
         const envelope = body as SignedPayload<JoinRequestPayload>;
         const valid = await verifyPayload(envelope);
         if (!valid) {

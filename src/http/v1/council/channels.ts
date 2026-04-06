@@ -164,6 +164,8 @@ export const getChannelHandler = async (ctx: Context) => {
       return;
     }
 
+    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) return;
+
     try {
       const onChainState = await queryChannelState(channel.channelContractId);
 
@@ -222,6 +224,8 @@ export const removeChannelHandler = async (ctx: Context) => {
       return;
     }
 
+    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) return;
+
     await channelRepo.update(id, { deletedAt: new Date() });
 
     LOG.info("Channel disabled", { id, channelContractId: channel.channelContractId });
@@ -254,6 +258,8 @@ export const enableChannelHandler = async (ctx: Context) => {
       ctx.response.body = { message: "Disabled channel not found" };
       return;
     }
+
+    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) return;
 
     await channelRepo.restore(id);
 

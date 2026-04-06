@@ -35,6 +35,13 @@ export async function signPayload<T>(payload: T, secretKey: string): Promise<Sig
 /**
  * Verifies a signed payload against the embedded public key.
  * Checks signature validity and timestamp freshness (max 5 minutes).
+ *
+ * NOTE: Replay protection relies on timestamp freshness only (5-min window).
+ * A nonce/idempotency-key mechanism is not yet implemented, so an identical
+ * signed payload could theoretically be replayed within the validity window.
+ * This is acceptable for current LOW-risk operations (join requests) but
+ * should be revisited before using signed payloads for state-changing
+ * council actions.
  */
 export async function verifyPayload<T>(envelope: SignedPayload<T>, maxAgeMs = MAX_AGE_MS): Promise<boolean> {
   try {

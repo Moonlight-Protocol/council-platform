@@ -129,6 +129,7 @@ Deno.test("POST /council/channels - rejects missing assetCode", async () => {
 Deno.test("GET /council/channels/:id - returns channel with state", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 
@@ -165,6 +166,7 @@ Deno.test("GET /council/channels/:id - returns 404 for non-existent", async () =
 Deno.test("DELETE /council/channels/:id - disables channel", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 
@@ -187,6 +189,7 @@ Deno.test("DELETE /council/channels/:id - disables channel", async () => {
 Deno.test("POST /council/channels/:id/enable - re-enables disabled channel", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 

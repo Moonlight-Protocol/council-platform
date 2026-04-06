@@ -191,10 +191,6 @@ export const putMetadataHandler = async (ctx: Context) => {
 };
 
 /**
- * GET /council/deleted
- * Lists soft-deleted councils (for recovery).
- */
-/**
  * DELETE /council/metadata?councilId=...
  * Deletes a council and all related data.
  */

@@ -44,12 +44,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "encrypted_opex_sk": {
-          "name": "encrypted_opex_sk",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",

@@ -172,7 +172,7 @@ const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
  * Returns the provider's membership status for a council.
  *   200 = active provider (registered on-chain and in DB)
  *   202 = pending join request
- *   403 = rejected or not found
+ *   404 = not found (also returned for rejected, to prevent enumeration)
  * No auth required — only returns status, no sensitive data.
  */
 const getMembershipStatus = async (ctx: Context) => {
@@ -202,9 +202,9 @@ const getMembershipStatus = async (ctx: Context) => {
       return;
     }
 
-    // Rejected or not found
-    ctx.response.status = 403;
-    ctx.response.body = { status: "REJECTED" };
+    // Return 404 for both rejected and non-existent providers to prevent enumeration
+    ctx.response.status = 404;
+    ctx.response.body = { status: "NOT_FOUND" };
   } catch (error) {
     LOG.error("Failed to get membership status", {
       error: error instanceof Error ? error.message : String(error),

@@ -72,6 +72,7 @@ Deno.test("GET /council/providers?status=ACTIVE - filters to active", async () =
 Deno.test("GET /council/providers/:id - returns provider details", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const provider = await seedProvider({ label: "My Provider" });
 
@@ -109,6 +110,7 @@ Deno.test("GET /council/providers/:id - returns 404 for non-existent", async () 
 Deno.test("PUT /council/providers/:id - updates provider metadata", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const provider = await seedProvider({ label: "Original" });
 
