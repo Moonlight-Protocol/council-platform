@@ -35,10 +35,10 @@ function hexToBytes(hex: string): Uint8Array {
 /**
  * Validates that the requesting session belongs to an active provider.
  */
-async function validateProviderSession(session: JwtSessionData): Promise<string | null> {
+async function validateProviderSession(councilId: string, session: JwtSessionData): Promise<string | null> {
   if (session.type !== "provider") return "Not a provider session";
 
-  const provider = await providerRepo.findByPublicKey(session.sub);
+  const provider = await providerRepo.findByPublicKey(councilId, session.sub);
   if (!provider) return "Provider not registered with this council";
   if (provider.status !== ProviderStatus.ACTIVE) return "Provider is not active";
 
@@ -57,15 +57,22 @@ async function validateProviderSession(session: JwtSessionData): Promise<string 
 export const postRegisterUserHandler = async (ctx: Context) => {
   try {
     const session = ctx.state.session as JwtSessionData;
-    const providerError = await validateProviderSession(session);
+
+    const body = await ctx.request.body.json();
+    const { councilId, externalId, channelContractId } = body;
+
+    if (!councilId || typeof councilId !== "string") {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId is required" };
+      return;
+    }
+
+    const providerError = await validateProviderSession(councilId, session);
     if (providerError) {
       ctx.response.status = Status.Forbidden;
       ctx.response.body = { message: providerError };
       return;
     }
-
-    const body = await ctx.request.body.json();
-    const { externalId, channelContractId } = body;
 
     if (!externalId || typeof externalId !== "string") {
       ctx.response.status = Status.BadRequest;
@@ -80,6 +87,7 @@ export const postRegisterUserHandler = async (ctx: Context) => {
     }
 
     const result = await registerCustodialUser({
+      councilId,
       externalId,
       channelContractId,
       providerPublicKey: session.sub,
@@ -115,15 +123,22 @@ export const postRegisterUserHandler = async (ctx: Context) => {
 export const postGetKeysHandler = async (ctx: Context) => {
   try {
     const session = ctx.state.session as JwtSessionData;
-    const providerError = await validateProviderSession(session);
+
+    const body = await ctx.request.body.json();
+    const { councilId, externalId, channelContractId, indices } = body;
+
+    if (!councilId || typeof councilId !== "string") {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId is required" };
+      return;
+    }
+
+    const providerError = await validateProviderSession(councilId, session);
     if (providerError) {
       ctx.response.status = Status.Forbidden;
       ctx.response.body = { message: providerError };
       return;
     }
-
-    const body = await ctx.request.body.json();
-    const { externalId, channelContractId, indices } = body;
 
     if (!externalId || !channelContractId || !Array.isArray(indices)) {
       ctx.response.status = Status.BadRequest;
@@ -177,15 +192,22 @@ export const postGetKeysHandler = async (ctx: Context) => {
 export const postSignSpendHandler = async (ctx: Context) => {
   try {
     const session = ctx.state.session as JwtSessionData;
-    const providerError = await validateProviderSession(session);
+
+    const body = await ctx.request.body.json();
+    const { councilId, channelContractId, spends } = body;
+
+    if (!councilId || typeof councilId !== "string") {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId is required" };
+      return;
+    }
+
+    const providerError = await validateProviderSession(councilId, session);
     if (providerError) {
       ctx.response.status = Status.Forbidden;
       ctx.response.body = { message: providerError };
       return;
     }
-
-    const body = await ctx.request.body.json();
-    const { channelContractId, spends } = body;
 
     if (!channelContractId || typeof channelContractId !== "string") {
       ctx.response.status = Status.BadRequest;

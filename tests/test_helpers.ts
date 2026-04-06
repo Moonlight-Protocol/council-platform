@@ -5,6 +5,7 @@
  * Run with: deno test --allow-all --config tests/deno.json tests/
  */
 import { Keypair, StrKey } from "stellar-sdk";
+import { Buffer } from "buffer";
 import {
   drizzleClient,
   resetDb,
@@ -37,24 +38,23 @@ export function testContractId(): string {
 export function randomContractId(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-  return StrKey.encodeContract(bytes);
+  return StrKey.encodeContract(Buffer.from(bytes));
 }
 
 // ── Seed helpers ────────────────────────────────────────────────────────
 
 export async function seedCouncilMetadata(overrides?: Partial<{
+  id: string;
   name: string;
   description: string;
   contactEmail: string;
-  channelAuthId: string;
   councilPublicKey: string;
 }>) {
   const data = {
-    id: "default",
+    id: overrides?.id ?? "default",
     name: overrides?.name ?? "Test Council",
     description: overrides?.description ?? "A test council",
     contactEmail: overrides?.contactEmail ?? "test@example.com",
-    channelAuthId: overrides?.channelAuthId ?? testContractId(),
     councilPublicKey: overrides?.councilPublicKey ?? ADMIN_KEYPAIR.publicKey(),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -67,12 +67,14 @@ export async function seedCouncilMetadata(overrides?: Partial<{
 }
 
 export async function seedChannel(overrides?: Partial<{
+  councilId: string;
   channelContractId: string;
   assetCode: string;
   label: string;
 }>) {
   const data = {
     id: crypto.randomUUID(),
+    councilId: overrides?.councilId ?? "default",
     channelContractId: overrides?.channelContractId ?? randomContractId(),
     assetCode: overrides?.assetCode ?? "XLM",
     label: overrides?.label ?? "Test Channel",
@@ -87,11 +89,13 @@ export async function seedChannel(overrides?: Partial<{
 }
 
 export async function seedJurisdiction(overrides?: Partial<{
+  councilId: string;
   countryCode: string;
   label: string;
 }>) {
   const data = {
     id: crypto.randomUUID(),
+    councilId: overrides?.councilId ?? "default",
     countryCode: overrides?.countryCode ?? "US",
     label: overrides?.label ?? "United States",
     createdAt: new Date(),
@@ -105,6 +109,7 @@ export async function seedJurisdiction(overrides?: Partial<{
 }
 
 export async function seedProvider(overrides?: Partial<{
+  councilId: string;
   publicKey: string;
   status: ProviderStatus;
   label: string;
@@ -112,6 +117,7 @@ export async function seedProvider(overrides?: Partial<{
 }>) {
   const data = {
     id: crypto.randomUUID(),
+    councilId: overrides?.councilId ?? "default",
     publicKey: overrides?.publicKey ?? Keypair.random().publicKey(),
     status: overrides?.status ?? ProviderStatus.ACTIVE,
     label: overrides?.label ?? "Test Provider",
@@ -127,6 +133,7 @@ export async function seedProvider(overrides?: Partial<{
 }
 
 export async function seedCustodialUser(overrides?: Partial<{
+  councilId: string;
   externalId: string;
   channelContractId: string;
   p256PublicKeyHex: string;
@@ -135,6 +142,7 @@ export async function seedCustodialUser(overrides?: Partial<{
 }>) {
   const data = {
     id: crypto.randomUUID(),
+    councilId: overrides?.councilId ?? "default",
     externalId: overrides?.externalId ?? `user-${crypto.randomUUID().slice(0, 8)}`,
     channelContractId: overrides?.channelContractId ?? testContractId(),
     p256PublicKeyHex: overrides?.p256PublicKeyHex ?? "04" + "a".repeat(128),
@@ -151,6 +159,7 @@ export async function seedCustodialUser(overrides?: Partial<{
 }
 
 export async function seedEscrow(overrides?: Partial<{
+  councilId: string;
   senderAddress: string;
   recipientAddress: string;
   amount: bigint;
@@ -161,6 +170,7 @@ export async function seedEscrow(overrides?: Partial<{
 }>) {
   const data = {
     id: crypto.randomUUID(),
+    councilId: overrides?.councilId ?? "default",
     senderAddress: overrides?.senderAddress ?? testAddress(),
     recipientAddress: overrides?.recipientAddress ?? testAddress(),
     amount: overrides?.amount ?? 1000n,
@@ -179,6 +189,7 @@ export async function seedEscrow(overrides?: Partial<{
 }
 
 export async function seedJoinRequest(overrides?: Partial<{
+  councilId: string;
   publicKey: string;
   label: string;
   contactEmail: string;
@@ -186,6 +197,7 @@ export async function seedJoinRequest(overrides?: Partial<{
 }>) {
   const data = {
     id: crypto.randomUUID(),
+    councilId: overrides?.councilId ?? "default",
     publicKey: overrides?.publicKey ?? Keypair.random().publicKey(),
     label: overrides?.label ?? "Test Provider Request",
     contactEmail: overrides?.contactEmail ?? "join@example.com",

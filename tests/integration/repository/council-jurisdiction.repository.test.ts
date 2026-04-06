@@ -20,6 +20,7 @@ Deno.test("create - inserts a jurisdiction", async () => {
 
   const result = await repo.create({
     id: crypto.randomUUID(),
+    councilId: "default",
     countryCode: "US",
     label: "United States",
   });
@@ -34,7 +35,7 @@ Deno.test("findByCountryCode - returns the correct record", async () => {
 
   await seedJurisdiction({ countryCode: "GB", label: "United Kingdom" });
 
-  const found = await repo.findByCountryCode("GB");
+  const found = await repo.findByCountryCode("default","GB");
   assertExists(found);
   assertEquals(found.countryCode, "GB");
 });
@@ -43,7 +44,7 @@ Deno.test("findByCountryCode - returns undefined for non-existent", async () => 
   await ensureInitialized();
   await resetDb();
 
-  const found = await repo.findByCountryCode("ZZ");
+  const found = await repo.findByCountryCode("default","ZZ");
   assertEquals(found, undefined);
 });
 
@@ -55,7 +56,7 @@ Deno.test("listAll - returns all non-deleted jurisdictions ordered by country co
   await seedJurisdiction({ countryCode: "GB", label: "United Kingdom" });
   await seedJurisdiction({ countryCode: "DE", label: "Germany" });
 
-  const all = await repo.listAll();
+  const all = await repo.listAll("default");
   assertEquals(all.length, 3);
   // Should be ordered by country code
   assertEquals(all[0].countryCode, "DE");
@@ -72,11 +73,11 @@ Deno.test("delete - soft-deletes and record excluded from listAll", async () => 
 
   await repo.delete(j1.id);
 
-  const all = await repo.listAll();
+  const all = await repo.listAll("default");
   assertEquals(all.length, 1);
   assertEquals(all[0].countryCode, "GB");
 
   // Also excluded from findByCountryCode
-  const found = await repo.findByCountryCode("US");
+  const found = await repo.findByCountryCode("default","US");
   assertEquals(found, undefined);
 });

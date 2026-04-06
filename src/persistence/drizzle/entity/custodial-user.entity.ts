@@ -21,6 +21,7 @@ export const custodialUserStatusEnum = pgEnum("custodial_user_status", [
  */
 export const custodialUser = pgTable("custodial_users", {
   id: text("id").primaryKey(),
+  councilId: text("council_id").notNull(),
   externalId: text("external_id").notNull(), // identifier from PP (e.g. Stellar address or UUID)
   channelContractId: text("channel_contract_id").notNull(),
   // The derived P256 root public key for this user+channel (hex-encoded)

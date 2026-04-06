@@ -1,20 +1,23 @@
 import { type Context, Status } from "@oak/oak";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilJurisdictionRepository } from "@/persistence/drizzle/repository/council-jurisdiction.repository.ts";
+import { requireCouncilId, requireCouncilOwnership } from "./helpers.ts";
+import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { LOG } from "@/config/logger.ts";
+
+const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 const jurisdictionRepo = new CouncilJurisdictionRepository(drizzleClient);
 
-// ISO 3166-1 alpha-2: exactly 2 uppercase letters
 const COUNTRY_CODE_RE = /^[A-Z]{2}$/;
 
-/**
- * GET /council/jurisdictions
- * Lists all active jurisdictions for this council.
- */
 export const listJurisdictionsHandler = async (ctx: Context) => {
   try {
-    const jurisdictions = await jurisdictionRepo.listAll();
+    const councilId = requireCouncilId(ctx);
+    if (!councilId) return;
+    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+
+    const jurisdictions = await jurisdictionRepo.listAll(councilId);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -34,12 +37,12 @@ export const listJurisdictionsHandler = async (ctx: Context) => {
   }
 };
 
-/**
- * POST /council/jurisdictions
- * Adds a jurisdiction. Admin-only.
- */
 export const addJurisdictionHandler = async (ctx: Context) => {
   try {
+    const councilId = requireCouncilId(ctx);
+    if (!councilId) return;
+    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+
     const body = await ctx.request.body.json();
     const { countryCode, label } = body;
 
@@ -56,22 +59,32 @@ export const addJurisdictionHandler = async (ctx: Context) => {
       return;
     }
 
-    const existing = await jurisdictionRepo.findByCountryCode(code);
+    const existing = await jurisdictionRepo.findByCountryCode(councilId, code);
     if (existing) {
       ctx.response.status = Status.Conflict;
       ctx.response.body = { message: `Jurisdiction ${code} already exists` };
       return;
     }
 
-    const jurisdiction = await jurisdictionRepo.create({
-      id: crypto.randomUUID(),
-      countryCode: code,
-      label: label?.trim() ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    const deleted = await jurisdictionRepo.findDeletedByCountryCode(councilId, code);
+    let jurisdiction;
+    if (deleted) {
+      jurisdiction = await jurisdictionRepo.update(deleted.id, {
+        deletedAt: null,
+        label: label?.trim() ?? deleted.label,
+      });
+    } else {
+      jurisdiction = await jurisdictionRepo.create({
+        id: crypto.randomUUID(),
+        councilId,
+        countryCode: code,
+        label: label?.trim() ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
 
-    LOG.info("Jurisdiction added", { countryCode: code });
+    LOG.info("Jurisdiction added", { councilId, countryCode: code });
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -96,12 +109,12 @@ export const addJurisdictionHandler = async (ctx: Context) => {
 
 type RouteParams = { code?: string };
 
-/**
- * DELETE /council/jurisdictions/:code
- * Removes a jurisdiction by country code. Admin-only.
- */
 export const removeJurisdictionHandler = async (ctx: Context) => {
   try {
+    const councilId = requireCouncilId(ctx);
+    if (!councilId) return;
+    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+
     const params = (ctx as unknown as { params?: RouteParams }).params;
     const code = params?.code?.toUpperCase();
 
@@ -111,7 +124,7 @@ export const removeJurisdictionHandler = async (ctx: Context) => {
       return;
     }
 
-    const existing = await jurisdictionRepo.findByCountryCode(code);
+    const existing = await jurisdictionRepo.findByCountryCode(councilId, code);
     if (!existing) {
       ctx.response.status = Status.NotFound;
       ctx.response.body = { message: `Jurisdiction ${code} not found` };
@@ -120,7 +133,7 @@ export const removeJurisdictionHandler = async (ctx: Context) => {
 
     await jurisdictionRepo.delete(existing.id);
 
-    LOG.info("Jurisdiction removed", { countryCode: code });
+    LOG.info("Jurisdiction removed", { councilId, countryCode: code });
 
     ctx.response.status = Status.OK;
     ctx.response.body = { message: `Jurisdiction ${code} removed` };

@@ -5,7 +5,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { resetDb, ensureInitialized, seedJurisdiction, ADMIN_KEYPAIR } from "../../test_helpers.ts";
+import { resetDb, ensureInitialized, seedJurisdiction, seedCouncilMetadata, ADMIN_KEYPAIR } from "../../test_helpers.ts";
 
 import {
   listJurisdictionsHandler,
@@ -24,11 +24,12 @@ const adminState = {
 Deno.test("GET /council/jurisdictions - lists jurisdictions", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedJurisdiction({ countryCode: "US", label: "United States" });
   await seedJurisdiction({ countryCode: "GB", label: "United Kingdom" });
 
-  const { ctx, getResponse } = createMockContext({ method: "GET", state: { ...adminState } });
+  const { ctx, getResponse } = createMockContext({ method: "GET", query: { councilId: "default" }, state: { ...adminState } });
   await listJurisdictionsHandler(ctx);
 
   const res = getResponse();
@@ -43,10 +44,12 @@ Deno.test("GET /council/jurisdictions - lists jurisdictions", async () => {
 Deno.test("POST /council/jurisdictions - adds a jurisdiction", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { countryCode: "US", label: "United States" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addJurisdictionHandler(ctx);
@@ -62,10 +65,12 @@ Deno.test("POST /council/jurisdictions - adds a jurisdiction", async () => {
 Deno.test("POST /council/jurisdictions - rejects invalid country code", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { countryCode: "INVALID" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addJurisdictionHandler(ctx);
@@ -77,12 +82,14 @@ Deno.test("POST /council/jurisdictions - rejects invalid country code", async ()
 Deno.test("POST /council/jurisdictions - rejects duplicate country code", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedJurisdiction({ countryCode: "US" });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { countryCode: "US", label: "Duplicate" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addJurisdictionHandler(ctx);
@@ -98,12 +105,14 @@ Deno.test("POST /council/jurisdictions - rejects duplicate country code", async 
 Deno.test("DELETE /council/jurisdictions/:code - removes a jurisdiction", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedJurisdiction({ countryCode: "DE", label: "Germany" });
 
   const { ctx, getResponse } = createMockContext({
     method: "DELETE",
     params: { code: "DE" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await removeJurisdictionHandler(ctx);
@@ -116,10 +125,12 @@ Deno.test("DELETE /council/jurisdictions/:code - removes a jurisdiction", async 
 Deno.test("DELETE /council/jurisdictions/:code - returns 404 for non-existent", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "DELETE",
     params: { code: "ZZ" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await removeJurisdictionHandler(ctx);

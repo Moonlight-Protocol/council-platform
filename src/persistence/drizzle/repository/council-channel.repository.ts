@@ -1,4 +1,4 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
   councilChannel,
@@ -16,12 +16,13 @@ export class CouncilChannelRepository extends BaseRepository<
     super(db, councilChannel);
   }
 
-  async findByContractId(contractId: string): Promise<CouncilChannel | undefined> {
+  async findByContractId(councilId: string, contractId: string): Promise<CouncilChannel | undefined> {
     const [result] = await this.db
       .select()
       .from(councilChannel)
       .where(
         and(
+          eq(councilChannel.councilId, councilId),
           eq(councilChannel.channelContractId, contractId),
           isNull(councilChannel.deletedAt),
         ),
@@ -30,20 +31,29 @@ export class CouncilChannelRepository extends BaseRepository<
     return result;
   }
 
-  async listAll(): Promise<CouncilChannel[]> {
+  async listAll(councilId: string): Promise<CouncilChannel[]> {
     return await this.db
       .select()
       .from(councilChannel)
-      .where(isNull(councilChannel.deletedAt))
+      .where(
+        and(
+          eq(councilChannel.councilId, councilId),
+          isNull(councilChannel.deletedAt),
+        ),
+      )
       .orderBy(councilChannel.createdAt);
   }
 
-  async listDisabled(): Promise<CouncilChannel[]> {
-    const { isNotNull } = await import("drizzle-orm");
+  async listDisabled(councilId: string): Promise<CouncilChannel[]> {
     return await this.db
       .select()
       .from(councilChannel)
-      .where(isNotNull(councilChannel.deletedAt))
+      .where(
+        and(
+          eq(councilChannel.councilId, councilId),
+          isNotNull(councilChannel.deletedAt),
+        ),
+      )
       .orderBy(councilChannel.createdAt);
   }
 

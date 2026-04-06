@@ -8,7 +8,10 @@ import {
 } from "@/core/service/escrow/escrow.service.ts";
 import type { JwtSessionData } from "@/http/middleware/auth/index.ts";
 import { LOG } from "@/config/logger.ts";
+import { drizzleClient } from "@/persistence/drizzle/config.ts";
+import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 
+const providerRepo = new CouncilProviderRepository(drizzleClient);
 const AMOUNT_RE = /^\d+$/;
 
 type RouteParams = { address?: string };
@@ -83,12 +86,12 @@ export const postEscrowHandler = async (ctx: Context) => {
     }
 
     const body = await ctx.request.body.json();
-    const { senderAddress, recipientAddress, amount, assetCode, channelContractId } = body;
+    const { councilId, senderAddress, recipientAddress, amount, assetCode, channelContractId } = body;
 
-    if (!senderAddress || !recipientAddress || !amount || !assetCode || !channelContractId) {
+    if (!councilId || !senderAddress || !recipientAddress || !amount || !assetCode || !channelContractId) {
       ctx.response.status = Status.BadRequest;
       ctx.response.body = {
-        message: "senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
+        message: "councilId, senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
       };
       return;
     }
@@ -112,7 +115,16 @@ export const postEscrowHandler = async (ctx: Context) => {
       return;
     }
 
+    // Verify the calling provider belongs to this council
+    const provider = await providerRepo.findByPublicKey(councilId, session.sub);
+    if (!provider) {
+      ctx.response.status = Status.Forbidden;
+      ctx.response.body = { message: "Provider not a member of this council" };
+      return;
+    }
+
     const result = await createEscrow({
+      councilId,
       senderAddress,
       recipientAddress,
       amount: amountBigInt,

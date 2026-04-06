@@ -5,6 +5,7 @@
  * or live Stellar network access.
  */
 import { Keypair } from "stellar-sdk";
+import { Buffer } from "buffer";
 
 // Fixed test keypairs — deterministic so key derivation produces
 // the same outputs across runs and crypto edge cases are reproducible.
@@ -49,13 +50,13 @@ export const NETWORK_RPC_SERVER = {
 // Mock signers with a publicKey() method
 export const COUNCIL_SIGNER = {
   publicKey: () => councilKeypair.publicKey(),
-  sign: (data: Uint8Array) => councilKeypair.sign(data),
+  sign: (data: Uint8Array) => councilKeypair.sign(Buffer.from(data)),
   secret: () => councilKeypair.secret(),
 };
 
 export const OPEX_SIGNER = {
   publicKey: () => opexKeypair.publicKey(),
-  sign: (data: Uint8Array) => opexKeypair.sign(data),
+  sign: (data: Uint8Array) => opexKeypair.sign(Buffer.from(data)),
   secret: () => opexKeypair.secret(),
 };
 

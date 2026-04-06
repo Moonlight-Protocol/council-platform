@@ -24,7 +24,7 @@ eventWatcher.onEvent(async (event) => {
         ledger: event.ledger,
       });
 
-      const existing = await providerRepo.findByPublicKey(event.address);
+      const existing = await providerRepo.findByPublicKey(CHANNEL_AUTH_ID, event.address);
       if (existing) {
         // Re-activate if previously removed
         if (existing.status === ProviderStatus.REMOVED) {
@@ -38,6 +38,7 @@ eventWatcher.onEvent(async (event) => {
       } else {
         await providerRepo.create({
           id: crypto.randomUUID(),
+          councilId: CHANNEL_AUTH_ID,
           publicKey: event.address,
           status: ProviderStatus.ACTIVE,
           registeredByEvent: `ledger:${event.ledger}`,
@@ -55,7 +56,7 @@ eventWatcher.onEvent(async (event) => {
         ledger: event.ledger,
       });
 
-      const provider = await providerRepo.findByPublicKey(event.address);
+      const provider = await providerRepo.findByPublicKey(CHANNEL_AUTH_ID, event.address);
       if (provider) {
         await providerRepo.update(provider.id, {
           status: ProviderStatus.REMOVED,

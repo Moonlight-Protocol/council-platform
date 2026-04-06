@@ -1,13 +1,14 @@
 import { type Context, Status } from "@oak/oak";
-import { Keypair, TransactionBuilder, Contract, Address, nativeToScVal } from "stellar-sdk";
-import { Server, assembleTransaction } from "stellar-sdk/rpc";
+import { eq, and, isNull } from "drizzle-orm";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
-import { JoinRequestStatus } from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
-import { ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
-import { CHANNEL_AUTH_ID, COUNCIL_SK, NETWORK_CONFIG, NETWORK } from "@/config/env.ts";
+import { providerJoinRequest, JoinRequestStatus } from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
+import { councilProvider, ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
+import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { LOG } from "@/config/logger.ts";
+
+const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
 const providerRepo = new CouncilProviderRepository(drizzleClient);
@@ -17,16 +18,26 @@ function formatJoinRequest(r: {
   publicKey: string;
   label: string | null;
   contactEmail: string | null;
+  jurisdictions: string | null;
+  callbackEndpoint: string | null;
   status: string;
   createdAt: Date;
   reviewedAt: Date | null;
   reviewedBy: string | null;
 }) {
+  let parsedJurisdictions = null;
+  try {
+    parsedJurisdictions = r.jurisdictions ? JSON.parse(r.jurisdictions) : null;
+  } catch {
+    parsedJurisdictions = null;
+  }
   return {
     id: r.id,
     publicKey: r.publicKey,
     label: r.label,
     contactEmail: r.contactEmail,
+    jurisdictions: parsedJurisdictions,
+    callbackEndpoint: r.callbackEndpoint,
     status: r.status,
     createdAt: r.createdAt.toISOString(),
     reviewedAt: r.reviewedAt?.toISOString() ?? null,
@@ -35,18 +46,34 @@ function formatJoinRequest(r: {
 }
 
 /**
- * GET /council/provider-requests
- * Lists join requests. Optional ?status= filter.
+ * GET /council/provider-requests?councilId=...
+ * Lists join requests for a council. Optional ?status= filter. Max 100 results.
  */
 export const listJoinRequestsHandler = async (ctx: Context) => {
   try {
+    const councilId = ctx.request.url.searchParams.get("councilId");
+    if (!councilId) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId query parameter is required" };
+      return;
+    }
+
+    // Verify ownership
+    const ownerPublicKey = (ctx.state.session as { sub: string }).sub;
+    const council = await metadataRepo.getByIdAndOwner(councilId, ownerPublicKey);
+    if (!council) {
+      ctx.response.status = Status.NotFound;
+      ctx.response.body = { message: "Council not found" };
+      return;
+    }
+
     const statusFilter = ctx.request.url.searchParams.get("status");
 
     let requests;
     if (statusFilter === "PENDING") {
-      requests = await joinRequestRepo.listPending();
+      requests = await joinRequestRepo.listPending(councilId);
     } else {
-      requests = await joinRequestRepo.listAll();
+      requests = await joinRequestRepo.listAll(councilId);
     }
 
     ctx.response.status = Status.OK;
@@ -67,7 +94,9 @@ type RouteParams = { id?: string };
 
 /**
  * POST /council/provider-requests/:id/approve
- * Approves a join request: calls add_provider on-chain, creates provider record.
+ * Approves a join request. On-chain add_provider is done client-side.
+ * Returns the council config and callback endpoint so the client can
+ * sign and push the config to the PP directly.
  */
 export const approveJoinRequestHandler = async (ctx: Context) => {
   try {
@@ -80,52 +109,89 @@ export const approveJoinRequestHandler = async (ctx: Context) => {
       return;
     }
 
-    const request = await joinRequestRepo.findById(id);
+    const adminPublicKey = (ctx.state.session as { sub: string }).sub;
+
+    // Verify the request's council is owned by this admin
+    const requestRow = await joinRequestRepo.findById(id);
+    if (!requestRow) {
+      ctx.response.status = Status.NotFound;
+      ctx.response.body = { message: "Join request not found" };
+      return;
+    }
+    const council = await metadataRepo.getByIdAndOwner(requestRow.councilId, adminPublicKey);
+    if (!council) {
+      ctx.response.status = Status.NotFound;
+      ctx.response.body = { message: "Join request not found" };
+      return;
+    }
+
+    // Atomic read-check-update inside a transaction with row lock.
+    // SELECT ... FOR UPDATE prevents concurrent approvals of the same request.
+    const request = await drizzleClient.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(providerJoinRequest)
+        .where(
+          and(
+            eq(providerJoinRequest.id, id),
+            isNull(providerJoinRequest.deletedAt),
+          ),
+        )
+        .for("update")
+        .limit(1);
+
+      if (!row) return null;
+      if (row.status !== JoinRequestStatus.PENDING) return row;
+
+      // Update request status
+      await tx
+        .update(providerJoinRequest)
+        .set({
+          status: JoinRequestStatus.APPROVED,
+          reviewedAt: new Date(),
+          reviewedBy: adminPublicKey,
+          updatedAt: new Date(),
+        })
+        .where(eq(providerJoinRequest.id, id));
+
+      // Create provider record if not exists for this council
+      const [existing] = await tx
+        .select()
+        .from(councilProvider)
+        .where(
+          and(
+            eq(councilProvider.councilId, row.councilId),
+            eq(councilProvider.publicKey, row.publicKey),
+          ),
+        )
+        .limit(1);
+
+      if (!existing) {
+        await tx.insert(councilProvider).values({
+          id: crypto.randomUUID(),
+          councilId: row.councilId,
+          publicKey: row.publicKey,
+          status: ProviderStatus.ACTIVE,
+          label: row.label,
+          contactEmail: row.contactEmail,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
+      return { ...row, status: JoinRequestStatus.APPROVED, reviewedAt: new Date(), reviewedBy: adminPublicKey };
+    });
+
     if (!request) {
       ctx.response.status = Status.NotFound;
       ctx.response.body = { message: "Join request not found" };
       return;
     }
 
-    if (request.status !== JoinRequestStatus.PENDING) {
+    if (request.status !== JoinRequestStatus.APPROVED) {
       ctx.response.status = Status.Conflict;
       ctx.response.body = { message: `Request is already ${request.status}` };
       return;
-    }
-
-    // Call add_provider on the Channel Auth contract
-    const adminPublicKey = (ctx.state.session as { sub: string }).sub;
-    try {
-      await callAddProvider(request.publicKey);
-    } catch (error) {
-      LOG.error("Failed to call add_provider on-chain", {
-        error: error instanceof Error ? error.message : String(error),
-        providerKey: request.publicKey,
-      });
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to add provider on-chain" };
-      return;
-    }
-
-    // Update request status
-    await joinRequestRepo.update(id, {
-      status: JoinRequestStatus.APPROVED,
-      reviewedAt: new Date(),
-      reviewedBy: adminPublicKey,
-    });
-
-    // Create provider record (may already exist from event watcher, so handle gracefully)
-    const existing = await providerRepo.findByPublicKey(request.publicKey);
-    if (!existing) {
-      await providerRepo.create({
-        id: crypto.randomUUID(),
-        publicKey: request.publicKey,
-        status: ProviderStatus.ACTIVE,
-        label: request.label,
-        contactEmail: request.contactEmail,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
     }
 
     LOG.info("Join request approved", { id, providerKey: request.publicKey });
@@ -151,7 +217,7 @@ export const approveJoinRequestHandler = async (ctx: Context) => {
 
 /**
  * POST /council/provider-requests/:id/reject
- * Rejects a join request.
+ * Rejects a join request. Stays visible in the list with REJECTED status.
  */
 export const rejectJoinRequestHandler = async (ctx: Context) => {
   try {
@@ -164,38 +230,69 @@ export const rejectJoinRequestHandler = async (ctx: Context) => {
       return;
     }
 
-    const request = await joinRequestRepo.findById(id);
+    const adminPublicKey = (ctx.state.session as { sub: string }).sub;
+
+    // Verify the request's council is owned by this admin
+    const rejectRequestRow = await joinRequestRepo.findById(id);
+    if (!rejectRequestRow) {
+      ctx.response.status = Status.NotFound;
+      ctx.response.body = { message: "Join request not found" };
+      return;
+    }
+    const rejectCouncil = await metadataRepo.getByIdAndOwner(rejectRequestRow.councilId, adminPublicKey);
+    if (!rejectCouncil) {
+      ctx.response.status = Status.NotFound;
+      ctx.response.body = { message: "Join request not found" };
+      return;
+    }
+
+    const request = await drizzleClient.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(providerJoinRequest)
+        .where(
+          and(
+            eq(providerJoinRequest.id, id),
+            isNull(providerJoinRequest.deletedAt),
+          ),
+        )
+        .for("update")
+        .limit(1);
+
+      if (!row) return null;
+      if (row.status !== JoinRequestStatus.PENDING) return row;
+
+      await tx
+        .update(providerJoinRequest)
+        .set({
+          status: JoinRequestStatus.REJECTED,
+          reviewedAt: new Date(),
+          reviewedBy: adminPublicKey,
+          updatedAt: new Date(),
+        })
+        .where(eq(providerJoinRequest.id, id));
+
+      return { ...row, status: JoinRequestStatus.REJECTED, reviewedAt: new Date(), reviewedBy: adminPublicKey };
+    });
+
     if (!request) {
       ctx.response.status = Status.NotFound;
       ctx.response.body = { message: "Join request not found" };
       return;
     }
 
-    if (request.status !== JoinRequestStatus.PENDING) {
+    if (request.status !== JoinRequestStatus.REJECTED) {
       ctx.response.status = Status.Conflict;
       ctx.response.body = { message: `Request is already ${request.status}` };
       return;
     }
-
-    const adminPublicKey = (ctx.state.session as { sub: string }).sub;
-
-    await joinRequestRepo.update(id, {
-      status: JoinRequestStatus.REJECTED,
-      reviewedAt: new Date(),
-      reviewedBy: adminPublicKey,
-    });
 
     LOG.info("Join request rejected", { id, providerKey: request.publicKey });
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
       message: "Join request rejected",
-      data: formatJoinRequest({
-        ...request,
-        status: JoinRequestStatus.REJECTED,
-        reviewedAt: new Date(),
-        reviewedBy: adminPublicKey,
-      }),
+      data: formatJoinRequest(request),
     };
   } catch (error) {
     LOG.error("Failed to reject join request", {
@@ -205,65 +302,3 @@ export const rejectJoinRequestHandler = async (ctx: Context) => {
     ctx.response.body = { message: "Failed to reject join request" };
   }
 };
-
-/**
- * Invoke add_provider on the Channel Auth contract using the council's keypair.
- */
-async function callAddProvider(providerPublicKey: string): Promise<void> {
-  let networkPassphrase: string;
-  switch (NETWORK) {
-    case "local":
-      networkPassphrase = "Standalone Network ; February 2017";
-      break;
-    case "testnet":
-      networkPassphrase = "Test SDF Network ; September 2015";
-      break;
-    default:
-      networkPassphrase = "Public Global Stellar Network ; September 2015";
-      break;
-  }
-
-  const rpcUrl = NETWORK_CONFIG.rpcUrl as string;
-  const server = new Server(rpcUrl, { allowHttp: true });
-
-  const councilKeypair = Keypair.fromSecret(COUNCIL_SK);
-  const sourcePublicKey = councilKeypair.publicKey();
-
-  const account = await server.getAccount(sourcePublicKey);
-  const contract = new Contract(CHANNEL_AUTH_ID);
-
-  const providerAddress = nativeToScVal(
-    Address.fromString(providerPublicKey),
-    { type: "address" },
-  );
-
-  const tx = new TransactionBuilder(account, {
-    fee: "10000000",
-    networkPassphrase,
-  })
-    .addOperation(contract.call("add_provider", providerAddress))
-    .setTimeout(30)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if ("error" in sim && sim.error) {
-    throw new Error(`Simulation failed: ${JSON.stringify(sim.error)}`);
-  }
-
-  const prepared = assembleTransaction(tx, sim).build();
-  prepared.sign(councilKeypair);
-
-  const result = await server.sendTransaction(prepared);
-
-  // Wait for confirmation
-  const deadline = Date.now() + 30000;
-  while (Date.now() < deadline) {
-    const status = await server.getTransaction(result.hash);
-    if (status.status === "SUCCESS") return;
-    if (status.status === "FAILED") {
-      throw new Error("Transaction failed on-chain");
-    }
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  throw new Error("Transaction timed out");
-}

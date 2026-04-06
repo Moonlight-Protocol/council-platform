@@ -24,6 +24,7 @@ Deno.test("create - inserts escrow", async () => {
 
   const result = await repo.create({
     id: crypto.randomUUID(),
+    councilId: "default",
     senderAddress: testAddress(),
     recipientAddress: testAddress(),
     amount: 5000n,

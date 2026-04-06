@@ -36,8 +36,8 @@ const MIGRATION = `
     name TEXT NOT NULL,
     description TEXT,
     contact_email TEXT,
-    channel_auth_id TEXT NOT NULL,
     council_public_key TEXT NOT NULL,
+    opex_public_key TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT,
@@ -47,6 +47,7 @@ const MIGRATION = `
 
   CREATE TABLE IF NOT EXISTS council_channels (
     id TEXT PRIMARY KEY,
+    council_id TEXT NOT NULL,
     channel_contract_id TEXT NOT NULL UNIQUE,
     asset_code TEXT NOT NULL,
     asset_contract_id TEXT,
@@ -64,6 +65,7 @@ const MIGRATION = `
 
   CREATE TABLE IF NOT EXISTS council_jurisdictions (
     id TEXT PRIMARY KEY,
+    council_id TEXT NOT NULL,
     country_code TEXT NOT NULL,
     label TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -72,10 +74,11 @@ const MIGRATION = `
     updated_by TEXT,
     deleted_at TIMESTAMPTZ
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_jurisdiction_country_code ON council_jurisdictions(country_code);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_jurisdiction_council_country ON council_jurisdictions(council_id, country_code);
 
   CREATE TABLE IF NOT EXISTS council_providers (
     id TEXT PRIMARY KEY,
+    council_id TEXT NOT NULL,
     public_key TEXT NOT NULL,
     status provider_status NOT NULL,
     label TEXT,
@@ -88,10 +91,11 @@ const MIGRATION = `
     updated_by TEXT,
     deleted_at TIMESTAMPTZ
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_public_key ON council_providers(public_key);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_council_pk ON council_providers(council_id, public_key);
 
   CREATE TABLE IF NOT EXISTS custodial_users (
     id TEXT PRIMARY KEY,
+    council_id TEXT NOT NULL,
     external_id TEXT NOT NULL,
     channel_contract_id TEXT NOT NULL,
     p256_public_key_hex TEXT NOT NULL,
@@ -107,6 +111,7 @@ const MIGRATION = `
 
   CREATE TABLE IF NOT EXISTS council_escrows (
     id TEXT PRIMARY KEY,
+    council_id TEXT NOT NULL,
     sender_address TEXT NOT NULL,
     recipient_address TEXT NOT NULL,
     amount BIGINT NOT NULL,
@@ -133,9 +138,13 @@ const MIGRATION = `
 
   CREATE TABLE IF NOT EXISTS provider_join_requests (
     id TEXT PRIMARY KEY,
+    council_id TEXT NOT NULL,
     public_key TEXT NOT NULL,
     label TEXT,
     contact_email TEXT,
+    jurisdictions TEXT,
+    callback_endpoint TEXT,
+    signature TEXT,
     status join_request_status NOT NULL,
     reviewed_at TIMESTAMPTZ,
     reviewed_by TEXT,
@@ -144,6 +153,11 @@ const MIGRATION = `
     created_by TEXT,
     updated_by TEXT,
     deleted_at TIMESTAMPTZ
+  );
+
+  CREATE TABLE IF NOT EXISTS wallet_users (
+    public_key TEXT PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 `;
 
@@ -195,7 +209,8 @@ export async function resetDb(): Promise<void> {
       council_channels,
       council_jurisdictions,
       council_metadata,
-      known_assets
+      known_assets,
+      wallet_users
     CASCADE;
   `);
 }

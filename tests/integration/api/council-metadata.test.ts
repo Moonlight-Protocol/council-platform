@@ -33,6 +33,7 @@ Deno.test("GET /council/metadata - returns 404 when no metadata exists", async (
 
   const { ctx, getResponse } = createMockContext({
     method: "GET",
+    query: { councilId: "default" },
     state: { ...adminState },
   });
 
@@ -40,7 +41,7 @@ Deno.test("GET /council/metadata - returns 404 when no metadata exists", async (
 
   const res = getResponse();
   assertEquals(res.status, 404);
-  assertEquals(res.body.message, "No council metadata found");
+  assertEquals(res.body.message, "Council not found");
 });
 
 Deno.test("GET /council/metadata - returns existing metadata", async () => {
@@ -50,6 +51,7 @@ Deno.test("GET /council/metadata - returns existing metadata", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "GET",
+    query: { councilId: "default" },
     state: { ...adminState },
   });
 
@@ -72,7 +74,7 @@ Deno.test("PUT /council/metadata - updates metadata", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { name: "Updated Council", description: "New description", contactEmail: "admin@example.com" },
+    body: { councilId: "default", name: "Updated Council", description: "New description", contactEmail: "admin@example.com" },
     state: { ...adminState },
   });
 
@@ -92,7 +94,7 @@ Deno.test("PUT /council/metadata - rejects missing name", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { description: "No name" },
+    body: { councilId: "default", description: "No name" },
     state: { ...adminState },
   });
 
@@ -109,7 +111,7 @@ Deno.test("PUT /council/metadata - rejects name over 200 chars", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { name: "x".repeat(201) },
+    body: { councilId: "default", name: "x".repeat(201) },
     state: { ...adminState },
   });
 
@@ -126,13 +128,12 @@ Deno.test("PUT /council/metadata - partial upsert preserves existing fields", as
   await seedCouncilMetadata({
     name: "Original",
     description: "Keep me",
-    channelAuthId: testContractId(),
     councilPublicKey: ADMIN_KEYPAIR.publicKey(),
   });
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { name: "Updated" },
+    body: { councilId: "default", name: "Updated" },
     state: { ...adminState },
   });
 
@@ -148,11 +149,11 @@ Deno.test("PUT /council/metadata - sets councilPublicKey from session sub", asyn
   await ensureInitialized();
   await resetDb();
   const otherKeypair = Keypair.random();
-  await seedCouncilMetadata({ name: "Original" });
+  await seedCouncilMetadata({ name: "Original", councilPublicKey: otherKeypair.publicKey() });
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { name: "Test" },
+    body: { councilId: "default", name: "Test" },
     state: {
       session: {
         sub: otherKeypair.publicKey(),
@@ -172,11 +173,10 @@ Deno.test("PUT /council/metadata - sets councilPublicKey from session sub", asyn
 Deno.test("PUT /council/metadata - creates record when none exists", async () => {
   await ensureInitialized();
   await resetDb();
-  const channelAuth = testContractId();
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { name: "New Council", channelAuthId: channelAuth },
+    body: { councilId: "default", name: "New Council" },
     state: { ...adminState },
   });
 
@@ -185,7 +185,6 @@ Deno.test("PUT /council/metadata - creates record when none exists", async () =>
   const res = getResponse();
   assertEquals(res.status, 200);
   assertEquals(res.body.data.name, "New Council");
-  assertEquals(res.body.data.channelAuthId, channelAuth);
   assertEquals(res.body.data.councilPublicKey, ADMIN_KEYPAIR.publicKey());
 });
 
@@ -213,7 +212,7 @@ Deno.test("PUT /council/metadata - rejects description over 2000 chars", async (
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { name: "Ok", description: "x".repeat(2001) },
+    body: { councilId: "default", name: "Ok", description: "x".repeat(2001) },
     state: { ...adminState },
   });
 
@@ -231,7 +230,7 @@ Deno.test("PUT /council/metadata - rejects contactEmail over 200 chars", async (
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { name: "Ok", contactEmail: "x".repeat(201) },
+    body: { councilId: "default", name: "Ok", contactEmail: "x".repeat(201) },
     state: { ...adminState },
   });
 
@@ -253,6 +252,7 @@ Deno.test("DELETE /council/metadata - deletes all council data", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "DELETE",
+    query: { councilId: "default" },
     state: { ...adminState },
   });
 

@@ -64,6 +64,7 @@ Deno.test("POST /council/escrow - creates escrow with provider JWT", async () =>
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       senderAddress: testAddress(),
       recipientAddress: testAddress(),
       amount: "1000000",
@@ -87,6 +88,7 @@ Deno.test("POST /council/escrow - rejects non-provider JWT", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       senderAddress: testAddress(),
       recipientAddress: testAddress(),
       amount: "1000000",
@@ -112,6 +114,7 @@ Deno.test("POST /council/escrow - rejects invalid amount", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       senderAddress: testAddress(),
       recipientAddress: testAddress(),
       amount: "not-a-number",
@@ -137,6 +140,7 @@ Deno.test("POST /council/escrow - rejects missing fields", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       senderAddress: testAddress(),
       // recipientAddress missing
       amount: "1000",
@@ -294,6 +298,7 @@ Deno.test("POST /council/escrow - rejects invalid channelContractId", async () =
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
+      councilId: "default",
       senderAddress: testAddress(),
       recipientAddress: testAddress(),
       amount: "1000000",

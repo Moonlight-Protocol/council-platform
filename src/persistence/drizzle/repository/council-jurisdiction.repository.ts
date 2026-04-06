@@ -1,4 +1,4 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
   councilJurisdiction,
@@ -16,12 +16,13 @@ export class CouncilJurisdictionRepository extends BaseRepository<
     super(db, councilJurisdiction);
   }
 
-  async findByCountryCode(code: string): Promise<CouncilJurisdiction | undefined> {
+  async findByCountryCode(councilId: string, code: string): Promise<CouncilJurisdiction | undefined> {
     const [result] = await this.db
       .select()
       .from(councilJurisdiction)
       .where(
         and(
+          eq(councilJurisdiction.councilId, councilId),
           eq(councilJurisdiction.countryCode, code.toUpperCase()),
           isNull(councilJurisdiction.deletedAt),
         ),
@@ -30,11 +31,31 @@ export class CouncilJurisdictionRepository extends BaseRepository<
     return result;
   }
 
-  async listAll(): Promise<CouncilJurisdiction[]> {
+  async findDeletedByCountryCode(councilId: string, code: string): Promise<CouncilJurisdiction | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(councilJurisdiction)
+      .where(
+        and(
+          eq(councilJurisdiction.councilId, councilId),
+          eq(councilJurisdiction.countryCode, code.toUpperCase()),
+          isNotNull(councilJurisdiction.deletedAt),
+        ),
+      )
+      .limit(1);
+    return result;
+  }
+
+  async listAll(councilId: string): Promise<CouncilJurisdiction[]> {
     return await this.db
       .select()
       .from(councilJurisdiction)
-      .where(isNull(councilJurisdiction.deletedAt))
+      .where(
+        and(
+          eq(councilJurisdiction.councilId, councilId),
+          isNull(councilJurisdiction.deletedAt),
+        ),
+      )
       .orderBy(councilJurisdiction.countryCode);
   }
 }

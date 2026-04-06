@@ -17,6 +17,7 @@ const userRepo = new CustodialUserRepository(drizzleClient);
  * @param providerPublicKey - The PP that onboarded this user
  */
 export async function registerCustodialUser(opts: {
+  councilId: string;
   externalId: string;
   channelContractId: string;
   providerPublicKey?: string;
@@ -24,7 +25,7 @@ export async function registerCustodialUser(opts: {
   userId: string;
   p256PublicKeyHex: string;
 }> {
-  const { externalId, channelContractId, providerPublicKey } = opts;
+  const { councilId, externalId, channelContractId, providerPublicKey } = opts;
 
   // Check if user already registered for this channel
   const existing = await userRepo.findByExternalIdAndChannel(externalId, channelContractId);
@@ -41,6 +42,7 @@ export async function registerCustodialUser(opts: {
 
   const user = await userRepo.create({
     id: crypto.randomUUID(),
+    councilId,
     externalId,
     channelContractId,
     p256PublicKeyHex,

@@ -1,9 +1,10 @@
-import { pgTable, text, bigint, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, bigint, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createBaseColumns } from "@/persistence/drizzle/entity/base.entity.ts";
 
 export const councilChannel = pgTable("council_channels", {
   id: text("id").primaryKey(),
-  channelContractId: text("channel_contract_id").notNull().unique(),
+  councilId: text("council_id").notNull(),
+  channelContractId: text("channel_contract_id").notNull(),
   assetCode: text("asset_code").notNull(),
   assetContractId: text("asset_contract_id"),
   label: text("label"),
@@ -13,7 +14,9 @@ export const councilChannel = pgTable("council_channels", {
   utxoCount: bigint("utxo_count", { mode: "bigint" }),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   ...createBaseColumns(),
-});
+}, (table) => [
+  uniqueIndex("idx_channel_council_contract").on(table.councilId, table.channelContractId),
+]);
 
 export type CouncilChannel = typeof councilChannel.$inferSelect;
 export type NewCouncilChannel = typeof councilChannel.$inferInsert;

@@ -1,4 +1,4 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, desc } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
   providerJoinRequest,
@@ -17,12 +17,13 @@ export class ProviderJoinRequestRepository extends BaseRepository<
     super(db, providerJoinRequest);
   }
 
-  async findPendingByPublicKey(publicKey: string): Promise<ProviderJoinRequest | undefined> {
+  async findPendingByPublicKey(councilId: string, publicKey: string): Promise<ProviderJoinRequest | undefined> {
     const [result] = await this.db
       .select()
       .from(providerJoinRequest)
       .where(
         and(
+          eq(providerJoinRequest.councilId, councilId),
           eq(providerJoinRequest.publicKey, publicKey),
           eq(providerJoinRequest.status, JoinRequestStatus.PENDING),
           isNull(providerJoinRequest.deletedAt),
@@ -32,24 +33,48 @@ export class ProviderJoinRequestRepository extends BaseRepository<
     return result;
   }
 
-  async listPending(): Promise<ProviderJoinRequest[]> {
+  async findLatestByPublicKey(councilId: string, publicKey: string): Promise<ProviderJoinRequest | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(providerJoinRequest)
+      .where(
+        and(
+          eq(providerJoinRequest.councilId, councilId),
+          eq(providerJoinRequest.publicKey, publicKey),
+          isNull(providerJoinRequest.deletedAt),
+        ),
+      )
+      .orderBy(desc(providerJoinRequest.createdAt))
+      .limit(1);
+    return result;
+  }
+
+  async listPending(councilId: string, limit = 100): Promise<ProviderJoinRequest[]> {
     return await this.db
       .select()
       .from(providerJoinRequest)
       .where(
         and(
+          eq(providerJoinRequest.councilId, councilId),
           eq(providerJoinRequest.status, JoinRequestStatus.PENDING),
           isNull(providerJoinRequest.deletedAt),
         ),
       )
-      .orderBy(providerJoinRequest.createdAt);
+      .orderBy(providerJoinRequest.createdAt)
+      .limit(limit);
   }
 
-  async listAll(): Promise<ProviderJoinRequest[]> {
+  async listAll(councilId: string, limit = 100): Promise<ProviderJoinRequest[]> {
     return await this.db
       .select()
       .from(providerJoinRequest)
-      .where(isNull(providerJoinRequest.deletedAt))
-      .orderBy(providerJoinRequest.createdAt);
+      .where(
+        and(
+          eq(providerJoinRequest.councilId, councilId),
+          isNull(providerJoinRequest.deletedAt),
+        ),
+      )
+      .orderBy(providerJoinRequest.createdAt)
+      .limit(limit);
   }
 }

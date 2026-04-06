@@ -87,7 +87,7 @@ Deno.test("provider auth - verify succeeds for a registered ACTIVE provider", as
 
   // Confirm the repository can find the provider
   const repo = new CouncilProviderRepository(drizzleClient);
-  const provider = await repo.findByPublicKey(pk);
+  const provider = await repo.findByPublicKey("default", pk);
   assertExists(provider);
   assertEquals(provider.status, ProviderStatus.ACTIVE);
 
@@ -127,7 +127,7 @@ Deno.test("provider auth - verify blocks unregistered provider before signature 
   // The handler checks provider status BEFORE calling verifyCouncilChallenge.
   // With no provider in DB, the lookup returns undefined → handler returns 403.
   const repo = new CouncilProviderRepository(drizzleClient);
-  const provider = await repo.findByPublicKey(pk);
+  const provider = await repo.findByPublicKey("default", pk);
   assertEquals(provider, undefined);
 
   // Even though the signature is valid, the handler never reaches verification.
@@ -155,7 +155,7 @@ Deno.test("provider auth - verify blocks REMOVED provider before signature check
 
   // Handler checks: if (!provider || provider.status !== ProviderStatus.ACTIVE)
   const repo = new CouncilProviderRepository(drizzleClient);
-  const provider = await repo.findByPublicKey(pk);
+  const provider = await repo.findByPublicKey("default", pk);
   assertExists(provider);
   assertEquals(provider.status, ProviderStatus.REMOVED);
 

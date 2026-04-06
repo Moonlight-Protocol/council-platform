@@ -5,7 +5,7 @@
  */
 import { assertEquals } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { resetDb, ensureInitialized, seedProvider, ADMIN_KEYPAIR, ProviderStatus } from "../../test_helpers.ts";
+import { resetDb, ensureInitialized, seedProvider, seedCouncilMetadata, ADMIN_KEYPAIR, ProviderStatus } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
 import {
@@ -25,6 +25,7 @@ const adminState = {
 Deno.test("GET /council/providers - lists all providers", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.ACTIVE });
   await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.REMOVED });
@@ -32,6 +33,7 @@ Deno.test("GET /council/providers - lists all providers", async () => {
   const { ctx, getResponse } = createMockContext({
     method: "GET",
     path: "/council/providers",
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await listProvidersHandler(ctx);
@@ -44,6 +46,7 @@ Deno.test("GET /council/providers - lists all providers", async () => {
 Deno.test("GET /council/providers?status=ACTIVE - filters to active", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.ACTIVE });
   await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.REMOVED });
@@ -51,7 +54,7 @@ Deno.test("GET /council/providers?status=ACTIVE - filters to active", async () =
   const { ctx, getResponse } = createMockContext({
     method: "GET",
     path: "/council/providers",
-    query: { status: "ACTIVE" },
+    query: { status: "ACTIVE", councilId: "default" },
     state: { ...adminState },
   });
   await listProvidersHandler(ctx);
@@ -69,6 +72,7 @@ Deno.test("GET /council/providers?status=ACTIVE - filters to active", async () =
 Deno.test("GET /council/providers/:id - returns provider details", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const provider = await seedProvider({ label: "My Provider" });
 
@@ -106,6 +110,7 @@ Deno.test("GET /council/providers/:id - returns 404 for non-existent", async () 
 Deno.test("PUT /council/providers/:id - updates provider metadata", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const provider = await seedProvider({ label: "Original" });
 

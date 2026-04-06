@@ -6,6 +6,7 @@ import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 import { ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
 import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
+import { CHANNEL_AUTH_ID } from "@/config/env.ts";
 import { LOG } from "@/config/logger.ts";
 
 const providerRepo = new CouncilProviderRepository(drizzleClient);
@@ -74,7 +75,7 @@ const postProviderVerifyHandler = async (ctx: Context) => {
     }
 
     // Double-check PP is still active (could have been removed between challenge and verify)
-    const provider = await providerRepo.findByPublicKey(publicKey);
+    const provider = await providerRepo.findByPublicKey(CHANNEL_AUTH_ID, publicKey);
     if (!provider || provider.status !== ProviderStatus.ACTIVE) {
       ctx.response.status = Status.Forbidden;
       ctx.response.body = { message: "Provider not registered or not active" };

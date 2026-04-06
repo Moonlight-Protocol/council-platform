@@ -5,7 +5,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { resetDb, ensureInitialized, seedChannel, ADMIN_KEYPAIR } from "../../test_helpers.ts";
+import { resetDb, ensureInitialized, seedChannel, seedCouncilMetadata, ADMIN_KEYPAIR } from "../../test_helpers.ts";
 
 import {
   listChannelsHandler,
@@ -30,10 +30,11 @@ const TEST_CONTRACT_ID_2 = "CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 Deno.test("GET /council/channels - lists channels", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedChannel({ channelContractId: TEST_CONTRACT_ID, assetCode: "XLM" });
 
-  const { ctx, getResponse } = createMockContext({ method: "GET", state: { ...adminState } });
+  const { ctx, getResponse } = createMockContext({ method: "GET", query: { councilId: "default" }, state: { ...adminState } });
   await listChannelsHandler(ctx);
 
   const res = getResponse();
@@ -49,10 +50,12 @@ Deno.test("GET /council/channels - lists channels", async () => {
 Deno.test("POST /council/channels - adds a channel", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { channelContractId: TEST_CONTRACT_ID, assetCode: "XLM", label: "Test Channel" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);
@@ -67,10 +70,12 @@ Deno.test("POST /council/channels - adds a channel", async () => {
 Deno.test("POST /council/channels - rejects invalid contract ID", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { channelContractId: "not-a-contract-id", assetCode: "XLM" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);
@@ -83,12 +88,14 @@ Deno.test("POST /council/channels - rejects invalid contract ID", async () => {
 Deno.test("POST /council/channels - rejects duplicate contract ID", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { channelContractId: TEST_CONTRACT_ID, assetCode: "XLM" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);
@@ -100,10 +107,12 @@ Deno.test("POST /council/channels - rejects duplicate contract ID", async () => 
 Deno.test("POST /council/channels - rejects missing assetCode", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { channelContractId: TEST_CONTRACT_ID },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);
@@ -120,6 +129,7 @@ Deno.test("POST /council/channels - rejects missing assetCode", async () => {
 Deno.test("GET /council/channels/:id - returns channel with state", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 
@@ -156,6 +166,7 @@ Deno.test("GET /council/channels/:id - returns 404 for non-existent", async () =
 Deno.test("DELETE /council/channels/:id - disables channel", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 
@@ -178,6 +189,7 @@ Deno.test("DELETE /council/channels/:id - disables channel", async () => {
 Deno.test("POST /council/channels/:id/enable - re-enables disabled channel", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 
@@ -209,6 +221,7 @@ Deno.test("POST /council/channels/:id/enable - re-enables disabled channel", asy
 Deno.test("GET /council/channels/disabled - lists disabled channels", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const ch = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
   await seedChannel({ channelContractId: TEST_CONTRACT_ID_2 });
@@ -223,6 +236,7 @@ Deno.test("GET /council/channels/disabled - lists disabled channels", async () =
 
   const { ctx, getResponse } = createMockContext({
     method: "GET",
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await listDisabledChannelsHandler(ctx);
@@ -240,10 +254,12 @@ Deno.test("GET /council/channels/disabled - lists disabled channels", async () =
 Deno.test("POST /council/channels - rejects assetCode over 12 chars", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { channelContractId: TEST_CONTRACT_ID, assetCode: "TOOLONGASSETCODE" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);
@@ -256,10 +272,12 @@ Deno.test("POST /council/channels - rejects assetCode over 12 chars", async () =
 Deno.test("POST /council/channels - rejects assetCode with special characters", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { channelContractId: TEST_CONTRACT_ID, assetCode: "USD$" },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);
@@ -272,10 +290,12 @@ Deno.test("POST /council/channels - rejects assetCode with special characters", 
 Deno.test("POST /council/channels - rejects label over 200 chars", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: { channelContractId: TEST_CONTRACT_ID, assetCode: "XLM", label: "x".repeat(201) },
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);
@@ -288,10 +308,12 @@ Deno.test("POST /council/channels - rejects label over 200 chars", async () => {
 Deno.test("POST /council/channels - rejects malformed JSON", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilMetadata();
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: undefined,
+    query: { councilId: "default" },
     state: { ...adminState },
   });
   await addChannelHandler(ctx);

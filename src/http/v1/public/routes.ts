@@ -5,7 +5,8 @@ import { CouncilJurisdictionRepository } from "@/persistence/drizzle/repository/
 import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
-import { postJoinRequestHandler } from "@/http/v1/public/join-request.ts";
+import { createPostJoinRequestHandler } from "@/http/v1/public/join-request.ts";
+import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
 import { LOG } from "@/config/logger.ts";
 
@@ -14,48 +15,24 @@ const jurisdictionRepo = new CouncilJurisdictionRepository(drizzleClient);
 const channelRepo = new CouncilChannelRepository(drizzleClient);
 const providerRepo = new CouncilProviderRepository(drizzleClient);
 
+function getCouncilId(ctx: Context): string | null {
+  return ctx.request.url.searchParams.get("councilId");
+}
+
 /**
- * GET /public/council
- * Read-only council summary for the network dashboard.
+ * GET /public/council?councilId=...
+ * Read-only council summary.
  * No auth required.
  */
 const getCouncilSummary = async (ctx: Context) => {
   try {
-    const [metadata, jurisdictions, channels, providers] = await Promise.all([
-      metadataRepo.getConfig(),
-      jurisdictionRepo.listAll(),
-      channelRepo.listAll(),
-      providerRepo.listActive(),
-    ]);
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Council summary",
-      data: {
-        council: metadata
-          ? {
-              name: metadata.name,
-              description: metadata.description,
-              contactEmail: metadata.contactEmail,
-              channelAuthId: metadata.channelAuthId,
-              councilPublicKey: metadata.councilPublicKey,
-            }
-          : null,
-        jurisdictions: jurisdictions.map((j) => ({
-          countryCode: j.countryCode,
-          label: j.label,
-        })),
-        channels: channels.map((ch) => ({
-          channelContractId: ch.channelContractId,
-          assetCode: ch.assetCode,
-          label: ch.label,
-        })),
-        providers: providers.map((p) => ({
-          publicKey: p.publicKey,
-          label: p.label,
-        })),
-      },
-    };
+    const councilId = getCouncilId(ctx);
+    if (!councilId) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId query parameter is required" };
+      return;
+    }
+    await returnCouncilSummary(ctx, councilId);
   } catch (error) {
     LOG.error("Failed to get council summary", {
       error: error instanceof Error ? error.message : String(error),
@@ -65,13 +42,57 @@ const getCouncilSummary = async (ctx: Context) => {
   }
 };
 
+async function returnCouncilSummary(ctx: Context, councilId: string) {
+  const [metadata, jurisdictions, channels, providers] = await Promise.all([
+    metadataRepo.getById(councilId),
+    jurisdictionRepo.listAll(councilId),
+    channelRepo.listAll(councilId),
+    providerRepo.listActive(councilId),
+  ]);
+
+  ctx.response.status = Status.OK;
+  ctx.response.body = {
+    message: "Council summary",
+    data: {
+      council: metadata
+        ? {
+            name: metadata.name,
+            description: metadata.description,
+            contactEmail: metadata.contactEmail,
+            channelAuthId: metadata.id,
+            councilPublicKey: metadata.councilPublicKey,
+          }
+        : null,
+      jurisdictions: jurisdictions.map((j) => ({
+        countryCode: j.countryCode,
+        label: j.label,
+      })),
+      channels: channels.map((ch) => ({
+        channelContractId: ch.channelContractId,
+        assetCode: ch.assetCode,
+        label: ch.label,
+      })),
+      providers: providers.map((p) => ({
+        publicKey: p.publicKey,
+        label: p.label,
+      })),
+    },
+  };
+}
+
 /**
- * GET /public/providers
+ * GET /public/providers?councilId=...
  * Lists active providers. No auth required.
  */
 const getPublicProviders = async (ctx: Context) => {
   try {
-    const providers = await providerRepo.listActive();
+    const councilId = getCouncilId(ctx);
+    if (!councilId) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId query parameter is required" };
+      return;
+    }
+    const providers = await providerRepo.listActive(councilId);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -91,12 +112,18 @@ const getPublicProviders = async (ctx: Context) => {
 };
 
 /**
- * GET /public/channels
+ * GET /public/channels?councilId=...
  * Lists channels. No auth required.
  */
 const getPublicChannels = async (ctx: Context) => {
   try {
-    const channels = await channelRepo.listAll();
+    const councilId = getCouncilId(ctx);
+    if (!councilId) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId query parameter is required" };
+      return;
+    }
+    const channels = await channelRepo.listAll(councilId);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -138,12 +165,62 @@ const getKnownAssets = async (ctx: Context) => {
   }
 };
 
+const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
+
+/**
+ * GET /public/provider/membership-status?councilId=...&publicKey=...
+ * Returns the provider's membership status for a council.
+ *   200 = active provider (registered on-chain and in DB)
+ *   202 = pending join request
+ *   404 = not found (also returned for rejected, to prevent enumeration)
+ * No auth required — only returns status, no sensitive data.
+ */
+const getMembershipStatus = async (ctx: Context) => {
+  try {
+    const councilId = getCouncilId(ctx);
+    const publicKey = ctx.request.url.searchParams.get("publicKey");
+
+    if (!councilId || !publicKey) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId and publicKey query parameters are required" };
+      return;
+    }
+
+    // Check if active provider (single-row lookup)
+    const provider = await providerRepo.findByPublicKey(councilId, publicKey);
+    if (provider && provider.status === "ACTIVE") {
+      ctx.response.status = 200;
+      ctx.response.body = { status: "ACTIVE" };
+      return;
+    }
+
+    // Check for pending request
+    const pending = await joinRequestRepo.findPendingByPublicKey(councilId, publicKey);
+    if (pending) {
+      ctx.response.status = 202;
+      ctx.response.body = { status: "PENDING" };
+      return;
+    }
+
+    // Return 404 for both rejected and non-existent providers to prevent enumeration
+    ctx.response.status = 404;
+    ctx.response.body = { status: "NOT_FOUND" };
+  } catch (error) {
+    LOG.error("Failed to get membership status", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    ctx.response.status = Status.InternalServerError;
+    ctx.response.body = { message: "Failed to retrieve membership status" };
+  }
+};
+
 const publicRouter = new Router();
 
+publicRouter.get("/public/provider/membership-status", lowRateLimitMiddleware, getMembershipStatus);
 publicRouter.get("/public/council", getCouncilSummary);
 publicRouter.get("/public/providers", getPublicProviders);
 publicRouter.get("/public/channels", getPublicChannels);
 publicRouter.get("/public/known-assets", getKnownAssets);
-publicRouter.post("/public/provider/join-request", lowRateLimitMiddleware, postJoinRequestHandler);
+publicRouter.post("/public/provider/join-request", lowRateLimitMiddleware, createPostJoinRequestHandler(joinRequestRepo));
 
 export default publicRouter;
