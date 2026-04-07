@@ -1,6 +1,9 @@
 import { type Context, Status } from "@oak/oak";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
+import { encryptSecret } from "@/core/crypto/encrypt-secret.ts";
+import { SERVICE_AUTH_SECRET } from "@/config/env.ts";
+import { addCouncilWatcher } from "@/core/service/event-watcher/index.ts";
 import { LOG } from "@/config/logger.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
@@ -163,7 +166,29 @@ export const putMetadataHandler = async (ctx: Context) => {
       return;
     }
 
+    // Generate per-council derivation root on first creation only.
+    // The root is random 32 bytes used as the HKDF root for custodial user keys.
+    // Stored encrypted at rest with SERVICE_AUTH_SECRET.
+    //
+    // For updates, carry the existing root through to the upsert so the
+    // ON CONFLICT insert row satisfies the NOT NULL constraint on
+    // encrypted_derivation_root. Never overwrite an existing root.
+    const isNewCouncil = !existing;
+    if (isNewCouncil) {
+      const root = crypto.getRandomValues(new Uint8Array(32));
+      updateData.encryptedDerivationRoot = await encryptSecret(root, SERVICE_AUTH_SECRET);
+      root.fill(0); // Best-effort zeroization
+    } else {
+      updateData.encryptedDerivationRoot = existing.encryptedDerivationRoot;
+    }
+
     const metadata = await metadataRepo.upsert(councilId, updateData);
+
+    // Start an event watcher for newly-created councils so we pick up
+    // provider_added/removed events from this council's contract.
+    if (isNewCouncil) {
+      addCouncilWatcher(councilId);
+    }
 
     LOG.info("Council metadata updated", { councilId, name: metadata.name });
 

@@ -7,6 +7,7 @@ import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import {
   ensureInitialized,
   resetDb,
+  seedCouncilWithRoot,
   seedCustodialUser,
   seedEscrow,
   testAddress,
@@ -24,6 +25,13 @@ import {
 } from "@/core/service/escrow/escrow.service.ts";
 
 const DEFAULT_ESCROW_FEE = 1_000_000n;
+const COUNCIL_ID = "default";
+
+async function setupCouncil() {
+  await ensureInitialized();
+  await resetDb();
+  await seedCouncilWithRoot({ id: COUNCIL_ID });
+}
 
 // ── createEscrow ─────────────────────────────────────────────────────────
 
@@ -108,17 +116,15 @@ Deno.test("getEscrowSummary - returns 0 for address with no escrows", async () =
 // ── getRecipientUtxos ────────────────────────────────────────────────────
 
 Deno.test("getRecipientUtxos - returns registered=false for unregistered user", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
-  const result = await getRecipientUtxos(testAddress(), testContractId(), 1);
+  const result = await getRecipientUtxos(COUNCIL_ID, testAddress(), testContractId(), 1);
   assertEquals(result.registered, false);
   assertEquals(result.publicKeys.length, 0);
 });
 
 Deno.test("getRecipientUtxos - returns registered=true with public keys for registered user", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = `user-${crypto.randomUUID().slice(0, 8)}`;
   const channelId = testContractId();
@@ -129,7 +135,7 @@ Deno.test("getRecipientUtxos - returns registered=true with public keys for regi
     status: CustodialUserStatus.ACTIVE,
   });
 
-  const result = await getRecipientUtxos(externalId, channelId, 2);
+  const result = await getRecipientUtxos(COUNCIL_ID, externalId, channelId, 2);
   assertEquals(result.registered, true);
   assertEquals(result.publicKeys.length, 2);
 

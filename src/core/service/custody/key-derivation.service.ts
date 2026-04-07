@@ -2,8 +2,22 @@ import { p256 } from "@noble/curves/p256";
 import { sha256 } from "@noble/hashes/sha256";
 import { hkdf } from "@noble/hashes/hkdf";
 import { mapHashToField } from "@noble/curves/abstract/modular";
-import { COUNCIL_SK, NETWORK } from "@/config/env.ts";
+import { NETWORK, SERVICE_AUTH_SECRET } from "@/config/env.ts";
+import { decryptSecret } from "@/core/crypto/encrypt-secret.ts";
+import { drizzleClient } from "@/persistence/drizzle/config.ts";
+import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { LOG } from "@/config/logger.ts";
+
+const metadataRepo = new CouncilMetadataRepository(drizzleClient);
+
+/** Loads and decrypts a council's derivation root. Throws if the council doesn't exist. */
+async function loadDerivationRoot(councilId: string): Promise<Uint8Array> {
+  const council = await metadataRepo.getById(councilId);
+  if (!council) {
+    throw new Error(`Council not found: ${councilId}`);
+  }
+  return decryptSecret(council.encryptedDerivationRoot, SERVICE_AUTH_SECRET);
+}
 
 /**
  * Deterministically derives a P256 keypair for a user+channel combination.
@@ -15,27 +29,31 @@ import { LOG } from "@/config/logger.ts";
  *   privateScalar = mapHashToField(expanded, p256.CURVE.n)
  *   publicKey = p256.getPublicKey(rawPrivateKey, false)
  *
- * The council uses its COUNCIL_SK as the root (instead of the user's secret key).
- * This means users are locked to the council, not to any individual PP.
+ * The root is per-council: each council has its own random 32-byte root stored
+ * encrypted in council_metadata. Custodial users are locked to the council.
  *
+ * @param councilId - The council's unique ID (channel auth contract ID)
  * @param channelContractId - The Privacy Channel contract ID
  * @param userExternalId - User identifier (e.g. Stellar address or UUID)
  * @param utxoIndex - UTXO slot index (0-299)
  */
 export async function deriveP256Keypair(
+  councilId: string,
   channelContractId: string,
   userExternalId: string,
   utxoIndex: number,
 ): Promise<{ publicKey: Uint8Array; privateKey: Uint8Array }> {
   // Context = network passphrase + channel contract ID (same as SDK's assembleNetworkContext)
   const context = `${NETWORK}${channelContractId}`;
-  // Root = council's Ed25519 secret key
-  const root = COUNCIL_SK;
+  // Root = per-council random 32 bytes (decrypted from DB)
+  const rootBytes = await loadDerivationRoot(councilId);
+  const root = btoa(String.fromCharCode(...rootBytes));
   // Index = user external ID + ":" + UTXO index
   const index = `${userExternalId}:${utxoIndex}`;
 
   // Assemble plaintext seed (same as SDK's generatePlainTextSeed)
   const plainTextSeed = `${context}${root}${index}`;
+  rootBytes.fill(0); // Best-effort zeroization
 
   // Hash seed with SHA-256 (same as SDK's hashSeed)
   const encoder = new TextEncoder();
@@ -62,30 +80,28 @@ export async function deriveP256Keypair(
  * Used for registration — stores only the public key.
  */
 export async function deriveP256PublicKey(
+  councilId: string,
   channelContractId: string,
   userExternalId: string,
   utxoIndex: number,
 ): Promise<Uint8Array> {
-  const { publicKey } = await deriveP256Keypair(channelContractId, userExternalId, utxoIndex);
+  const { publicKey } = await deriveP256Keypair(councilId, channelContractId, userExternalId, utxoIndex);
   return publicKey;
 }
 
 /**
  * Signs a message with the derived P256 private key.
  * Used by the signing API when PPs request UTXO spend signatures.
- */
-/**
- * Signs a message with the derived P256 private key.
- * Used by the signing API when PPs request UTXO spend signatures.
  * Best-effort zeroization of private key material after use.
  */
 export async function signWithDerivedKey(
+  councilId: string,
   channelContractId: string,
   userExternalId: string,
   utxoIndex: number,
   message: Uint8Array,
 ): Promise<Uint8Array> {
-  const { privateKey } = await deriveP256Keypair(channelContractId, userExternalId, utxoIndex);
+  const { privateKey } = await deriveP256Keypair(councilId, channelContractId, userExternalId, utxoIndex);
   try {
     const signature = p256.sign(message, privateKey);
     return signature.toDERRawBytes();
