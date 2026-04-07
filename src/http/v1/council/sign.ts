@@ -33,11 +33,11 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 /**
- * Validates that the requesting session belongs to an active provider.
+ * Validates that the requesting session belongs to an active provider for this council.
+ * Authorization is membership-based: any wallet that is an active member of the council
+ * can use these endpoints.
  */
 async function validateProviderSession(councilId: string, session: JwtSessionData): Promise<string | null> {
-  if (session.type !== "provider") return "Not a provider session";
-
   const provider = await providerRepo.findByPublicKey(councilId, session.sub);
   if (!provider) return "Provider not registered with this council";
   if (provider.status !== ProviderStatus.ACTIVE) return "Provider is not active";
@@ -152,7 +152,7 @@ export const postGetKeysHandler = async (ctx: Context) => {
       return;
     }
 
-    const publicKeys = await getUserPublicKeys(externalId, channelContractId, indices);
+    const publicKeys = await getUserPublicKeys(councilId, externalId, channelContractId, indices);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -274,6 +274,7 @@ export const postSignSpendHandler = async (ctx: Context) => {
         return;
       }
       const signature = await signWithDerivedKey(
+        councilId,
         channelContractId,
         externalId,
         utxoIndex,

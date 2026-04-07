@@ -10,6 +10,7 @@ import { createMockContext } from "../../test_app.ts";
 import {
   resetDb,
   ensureInitialized,
+  seedCouncilWithRoot,
   seedProvider,
   seedCustodialUser,
   seedEscrow,
@@ -101,7 +102,7 @@ Deno.test("POST /council/escrow - rejects non-provider JWT", async () => {
 
   const res = getResponse();
   assertEquals(res.status, 403);
-  assertEquals(res.body.message, "Provider access required");
+  assertEquals(res.body.message, "Provider not a member of this council");
 });
 
 Deno.test("POST /council/escrow - rejects invalid amount", async () => {
@@ -199,6 +200,7 @@ Deno.test("GET /council/escrow/:address - returns escrow summary", async () => {
 Deno.test("GET /council/recipient/:address/utxos - returns registered=false for unknown user", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilWithRoot();
 
   const unknownAddr = testAddress();
 
@@ -206,7 +208,7 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=false for 
     method: "GET",
     path: `/council/recipient/${unknownAddr}/utxos`,
     params: { address: unknownAddr },
-    query: { channelContractId: TEST_CONTRACT_ID, count: "1" },
+    query: { councilId: "default", channelContractId: TEST_CONTRACT_ID, count: "1" },
   });
   await getRecipientUtxosHandler(ctx);
 
@@ -219,6 +221,7 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=false for 
 Deno.test("GET /council/recipient/:address/utxos - returns registered=true for registered user", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilWithRoot();
 
   const userAddr = "user-utxo-test";
   await seedCustodialUser({
@@ -230,7 +233,7 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=true for r
     method: "GET",
     path: `/council/recipient/${userAddr}/utxos`,
     params: { address: userAddr },
-    query: { channelContractId: TEST_CONTRACT_ID, count: "2" },
+    query: { councilId: "default", channelContractId: TEST_CONTRACT_ID, count: "2" },
   });
   await getRecipientUtxosHandler(ctx);
 
