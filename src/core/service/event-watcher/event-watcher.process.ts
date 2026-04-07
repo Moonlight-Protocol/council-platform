@@ -6,6 +6,16 @@ import { withSpan } from "@/core/tracing.ts";
 
 const DEFAULT_INTERVAL_MS = 30_000;
 
+// When a watcher starts fresh (no saved cursor), it begins polling from
+// `currentLedger - LOOKBACK_LEDGERS`. This handles the gap between when a
+// council is created and when its watcher actually starts (the watcher
+// service polls the DB for new councils on a periodic interval, not
+// instantly). Without the lookback, provider_added events emitted in that
+// window would be missed.
+//
+// Stellar ledgers are ~5s, so 12 ledgers ≈ 60s of safety margin.
+const LOOKBACK_LEDGERS = 12;
+
 function cursorKvKey(contractId: string): Deno.KvKey {
   return ["event-watcher", contractId, "lastLedger"];
 }
@@ -54,9 +64,10 @@ export class EventWatcher {
       });
     } else {
       const latestLedger = await NETWORK_RPC_SERVER.getLatestLedger();
-      this.lastLedger = latestLedger.sequence;
+      this.lastLedger = Math.max(0, latestLedger.sequence - LOOKBACK_LEDGERS);
       LOG.info("EventWatcher initialized from network (no saved cursor)", {
         contractId: this.config.contractId,
+        latestLedger: latestLedger.sequence,
         startLedger: this.lastLedger,
       });
     }

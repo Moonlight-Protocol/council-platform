@@ -3,7 +3,6 @@ import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { encryptSecret } from "@/core/crypto/encrypt-secret.ts";
 import { SERVICE_AUTH_SECRET } from "@/config/env.ts";
-import { addCouncilWatcher } from "@/core/service/event-watcher/index.ts";
 import { LOG } from "@/config/logger.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
@@ -184,11 +183,10 @@ export const putMetadataHandler = async (ctx: Context) => {
 
     const metadata = await metadataRepo.upsert(councilId, updateData);
 
-    // Start an event watcher for newly-created councils so we pick up
-    // provider_added/removed events from this council's contract.
-    if (isNewCouncil) {
-      addCouncilWatcher(councilId);
-    }
+    // The event watcher service polls the DB on a periodic interval
+    // and starts a watcher for any council that doesn't yet have one.
+    // No direct call is needed here — keeping the handler free of
+    // async side effects (and trivially testable).
 
     LOG.info("Council metadata updated", { councilId, name: metadata.name });
 

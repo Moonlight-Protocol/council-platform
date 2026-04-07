@@ -16,16 +16,25 @@ const providerRepo = new CouncilProviderRepository(drizzleClient);
 /**
  * Multi-council event watcher.
  *
- * Each council's `id` IS the channel auth contract ID. The watcher loads all
- * councils from the DB on startup and creates a per-council watcher. When a
- * new council is created, addCouncilWatcher is called to start watching it.
+ * Each council's `id` IS the channel auth contract ID. The service polls the
+ * DB periodically for councils that don't yet have a watcher and starts one.
+ * Per-council watchers are persistent and use a ledger lookback so they don't
+ * miss events emitted between council creation and watcher startup.
  *
  * Events update the council_providers table for the corresponding council:
  *   - provider_added → upsert ACTIVE provider for that council
  *   - provider_removed → mark provider REMOVED for that council
+ *
+ * Design note: handlers (e.g., putMetadataHandler) DO NOT trigger watcher
+ * creation directly. They only write to the DB; the watcher service picks up
+ * the new council on its next sync tick. This keeps handlers free of async
+ * side effects and makes them trivially testable.
  */
 
+const DB_SYNC_INTERVAL_MS = 5_000;
+
 const activeWatchers = new Map<string, EventWatcher>(); // councilId → watcher
+let dbSyncTimer: number | null = null;
 
 function makeHandler(councilId: string) {
   return async (event: { type: string; address: string; ledger: number }) => {
@@ -112,41 +121,48 @@ async function ensureWatcher(councilId: string): Promise<void> {
   LOG.info("Started event watcher for council", { councilId });
 }
 
-/** Add a council to watch (called when a new council is created via PUT /council/metadata). */
-export function addCouncilWatcher(councilId: string): void {
-  ensureWatcher(councilId).catch((err) => {
-    LOG.error("Failed to add council watcher", {
-      councilId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  });
-}
-
-async function initFromDb(): Promise<void> {
+/**
+ * Loads all councils from the DB and starts a watcher for any that don't
+ * have one yet. Called once at boot and then periodically by startEventWatcher.
+ */
+async function syncWatchersFromDb(): Promise<void> {
   try {
     const councils = await metadataRepo.listAll();
     for (const council of councils) {
-      await ensureWatcher(council.id);
+      if (!activeWatchers.has(council.id)) {
+        await ensureWatcher(council.id);
+      }
     }
-    LOG.info("Event watchers initialized from DB", {
-      councils: councils.length,
-      watchers: activeWatchers.size,
-    });
   } catch (err) {
-    LOG.warn("Failed to initialize event watchers from DB", {
+    LOG.warn("Failed to sync event watchers from DB", {
       error: err instanceof Error ? err.message : String(err),
     });
   }
 }
 
 export async function startEventWatcher(): Promise<void> {
-  await initFromDb();
-  if (activeWatchers.size === 0) {
-    LOG.info("No councils — no event watchers started");
-  }
+  await syncWatchersFromDb();
+  LOG.info("Event watcher service started", {
+    initialWatchers: activeWatchers.size,
+    syncIntervalMs: DB_SYNC_INTERVAL_MS,
+  });
+
+  // Periodically pick up newly-created councils. Handlers don't notify the
+  // watcher directly — they just write to the DB and we discover them here.
+  dbSyncTimer = setInterval(() => {
+    syncWatchersFromDb().catch((err) => {
+      LOG.error("DB sync tick failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }, DB_SYNC_INTERVAL_MS) as unknown as number;
 }
 
 export function stopEventWatcher(): void {
+  if (dbSyncTimer !== null) {
+    clearInterval(dbSyncTimer);
+    dbSyncTimer = null;
+  }
   for (const [, watcher] of activeWatchers) {
     try {
       watcher.stop();
