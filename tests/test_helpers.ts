@@ -12,6 +12,8 @@ import {
   closeDb,
   ensureInitialized,
 } from "./pglite_db.ts";
+import { encryptSecret } from "@/core/crypto/encrypt-secret.ts";
+import { SERVICE_AUTH_SECRET } from "@/config/env.ts";
 import { councilMetadata } from "@/persistence/drizzle/entity/council-metadata.entity.ts";
 import { councilChannel } from "@/persistence/drizzle/entity/council-channel.entity.ts";
 import { councilJurisdiction } from "@/persistence/drizzle/entity/council-jurisdiction.entity.ts";
@@ -49,6 +51,7 @@ export async function seedCouncilMetadata(overrides?: Partial<{
   description: string;
   contactEmail: string;
   councilPublicKey: string;
+  encryptedDerivationRoot: string;
 }>) {
   const data = {
     id: overrides?.id ?? "default",
@@ -56,6 +59,9 @@ export async function seedCouncilMetadata(overrides?: Partial<{
     description: overrides?.description ?? "A test council",
     contactEmail: overrides?.contactEmail ?? "test@example.com",
     councilPublicKey: overrides?.councilPublicKey ?? ADMIN_KEYPAIR.publicKey(),
+    // Test fixture: a fixed pre-encrypted root produced from test-secret + zeroes.
+    // Real councils get a random root from putMetadataHandler.
+    encryptedDerivationRoot: overrides?.encryptedDerivationRoot ?? "test-fixture-root",
     createdAt: new Date(),
     updatedAt: new Date(),
     createdBy: null,
@@ -64,6 +70,39 @@ export async function seedCouncilMetadata(overrides?: Partial<{
   };
   const [result] = await drizzleClient.insert(councilMetadata).values(data).returning();
   return result;
+}
+
+/**
+ * Seeds a council with a real, decryptable derivation root.
+ *
+ * Unlike `seedCouncilMetadata` (which stores the fixture string `"test-fixture-root"`),
+ * this helper generates a random 32-byte root, encrypts it with the test
+ * SERVICE_AUTH_SECRET, and stores the ciphertext so that
+ * `key-derivation.service.ts` can decrypt it at runtime.
+ *
+ * Use this in any test that calls into the custody, escrow, or sign
+ * services / handlers where key derivation actually runs.
+ *
+ * Returns both the seeded council row and the raw root bytes, so tests
+ * can use the raw root for assertions if needed.
+ */
+export async function seedCouncilWithRoot(overrides?: Partial<{
+  id: string;
+  name: string;
+  description: string;
+  contactEmail: string;
+  councilPublicKey: string;
+}>): Promise<{
+  council: Awaited<ReturnType<typeof seedCouncilMetadata>>;
+  root: Uint8Array;
+}> {
+  const root = crypto.getRandomValues(new Uint8Array(32));
+  const encryptedDerivationRoot = await encryptSecret(root, SERVICE_AUTH_SECRET);
+  const council = await seedCouncilMetadata({
+    ...overrides,
+    encryptedDerivationRoot,
+  });
+  return { council, root };
 }
 
 export async function seedChannel(overrides?: Partial<{

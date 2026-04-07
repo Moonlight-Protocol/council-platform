@@ -8,6 +8,9 @@ export const councilMetadata = pgTable("council_metadata", {
   contactEmail: text("contact_email"),
   councilPublicKey: text("council_public_key").notNull(),
   opexPublicKey: text("opex_public_key"),
+  // Per-council derivation root used by custodial key derivation. Random 32 bytes
+  // generated on council create, encrypted at rest with SERVICE_AUTH_SECRET.
+  encryptedDerivationRoot: text("encrypted_derivation_root").notNull(),
   ...createBaseColumns(),
 });
 

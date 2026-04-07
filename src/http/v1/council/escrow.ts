@@ -40,6 +40,13 @@ export const getRecipientUtxosHandler = async (ctx: Context) => {
       return;
     }
 
+    const councilId = ctx.request.url.searchParams.get("councilId");
+    if (!councilId) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { message: "councilId query param is required" };
+      return;
+    }
+
     const count = Number(ctx.request.url.searchParams.get("count") || "1");
     if (!Number.isInteger(count) || count < 1 || count > 300) {
       ctx.response.status = Status.BadRequest;
@@ -47,7 +54,7 @@ export const getRecipientUtxosHandler = async (ctx: Context) => {
       return;
     }
 
-    const result = await getRecipientUtxos(address, channelContractId, count);
+    const result = await getRecipientUtxos(councilId, address, channelContractId, count);
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -79,11 +86,6 @@ export const getRecipientUtxosHandler = async (ctx: Context) => {
 export const postEscrowHandler = async (ctx: Context) => {
   try {
     const session = ctx.state.session as JwtSessionData;
-    if (session.type !== "provider") {
-      ctx.response.status = Status.Forbidden;
-      ctx.response.body = { message: "Provider access required" };
-      return;
-    }
 
     const body = await ctx.request.body.json();
     const { councilId, senderAddress, recipientAddress, amount, assetCode, channelContractId } = body;

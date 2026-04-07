@@ -5,6 +5,8 @@
  */
 import { assertEquals } from "@std/assert";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
+import { encryptSecret } from "@/core/crypto/encrypt-secret.ts";
+import { SERVICE_AUTH_SECRET } from "@/config/env.ts";
 import {
   drizzleClient,
   resetDb,
@@ -22,6 +24,12 @@ import {
 
 const repo = new CouncilMetadataRepository(drizzleClient);
 
+// Helper to mint a real encrypted root for direct repo tests.
+async function makeEncryptedRoot(): Promise<string> {
+  const root = crypto.getRandomValues(new Uint8Array(32));
+  return await encryptSecret(root, SERVICE_AUTH_SECRET);
+}
+
 Deno.test("getById - returns undefined on empty DB", async () => {
   await ensureInitialized();
   await resetDb();
@@ -34,11 +42,13 @@ Deno.test("upsert - creates a new record", async () => {
   await ensureInitialized();
   await resetDb();
 
+  const encryptedDerivationRoot = await makeEncryptedRoot();
   const result = await repo.upsert("default", {
     name: "Test Council",
     description: "A test council",
     contactEmail: "test@example.com",
     councilPublicKey: ADMIN_KEYPAIR.publicKey(),
+    encryptedDerivationRoot,
   });
 
   assertEquals(result.id, "default");
@@ -50,14 +60,19 @@ Deno.test("upsert - updates existing record (singleton)", async () => {
   await ensureInitialized();
   await resetDb();
 
+  const encryptedDerivationRoot = await makeEncryptedRoot();
   await repo.upsert("default", {
     name: "Original Name",
     councilPublicKey: ADMIN_KEYPAIR.publicKey(),
+    encryptedDerivationRoot,
   });
 
+  // Update payload carries the existing derivation root through so
+  // the ON CONFLICT insert row satisfies the NOT NULL constraint.
   const updated = await repo.upsert("default", {
     name: "Updated Name",
     councilPublicKey: ADMIN_KEYPAIR.publicKey(),
+    encryptedDerivationRoot,
   });
 
   assertEquals(updated.id, "default");
