@@ -8,13 +8,17 @@ export type JwtPayload = {
   iat: number;
   exp: number;
   sessionId: string;
-  type?: "admin" | "provider";
 };
 
+/**
+ * Generates a wallet-auth JWT. Authorization is per-endpoint based on the
+ * wallet identity (sub): admin endpoints check council ownership, provider
+ * endpoints check council membership. There is no `type` claim — every wallet
+ * authenticates the same way and the data decides what they can do.
+ */
 export default async function (
   clientAccount: string,
   challengeHash: string,
-  opts?: { type?: "admin" | "provider" },
 ) {
   const header = { alg: "HS256", typ: "JWT" } as const;
 
@@ -25,10 +29,6 @@ export default async function (
     exp: getNumericDate(SESSION_TTL),
     sessionId: challengeHash,
   };
-
-  if (opts?.type) {
-    payload.type = opts.type;
-  }
 
   const secretKey = SERVICE_AUTH_SECRET_AS_CRYPTO_KEY_SIGNABLE;
   const jwt = await create(header, payload, secretKey);

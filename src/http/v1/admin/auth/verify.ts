@@ -19,7 +19,7 @@ export const postVerifyHandler = async (ctx: Context) => {
     }
 
     const { token } = await verifyCouncilChallenge(nonce, signature, publicKey, {
-      generateToken: (subject, sessionId) => generateJwt(subject, sessionId, { type: "admin" }),
+      generateToken: (subject, sessionId) => generateJwt(subject, sessionId),
     });
 
     await walletUserRepo.findOrCreate(publicKey);
