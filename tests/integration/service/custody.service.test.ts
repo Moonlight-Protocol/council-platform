@@ -7,6 +7,7 @@ import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import {
   ensureInitialized,
   resetDb,
+  seedCouncilWithRoot,
   seedCustodialUser,
   testContractId,
   CustodialUserStatus,
@@ -18,16 +19,22 @@ import {
 } from "@/core/service/custody/custody.service.ts";
 
 const CONTRACT_ID = testContractId();
+const COUNCIL_ID = "default";
+
+async function setupCouncil() {
+  await ensureInitialized();
+  await resetDb();
+  await seedCouncilWithRoot({ id: COUNCIL_ID });
+}
 
 // ── registerCustodialUser ────────────────────────────────────────────────
 
 Deno.test("registerCustodialUser - creates user and returns derived key", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = Keypair.random().publicKey();
   const result = await registerCustodialUser({
-    councilId: "default",
+    councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
   });
@@ -38,18 +45,17 @@ Deno.test("registerCustodialUser - creates user and returns derived key", async 
 });
 
 Deno.test("registerCustodialUser - returns existing user for duplicate registration", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = Keypair.random().publicKey();
   const first = await registerCustodialUser({
-    councilId: "default",
+    councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
   });
 
   const second = await registerCustodialUser({
-    councilId: "default",
+    councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
   });
@@ -61,17 +67,16 @@ Deno.test("registerCustodialUser - returns existing user for duplicate registrat
 // ── getUserPublicKeys ────────────────────────────────────────────────────
 
 Deno.test("getUserPublicKeys - returns derived keys at specified indices", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
-    councilId: "default",
+    councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
   });
 
-  const keys = await getUserPublicKeys(externalId, CONTRACT_ID, [0, 1, 2]);
+  const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 1, 2]);
   assertEquals(keys.length, 3);
 
   for (const key of keys) {
@@ -80,53 +85,49 @@ Deno.test("getUserPublicKeys - returns derived keys at specified indices", async
 });
 
 Deno.test("getUserPublicKeys - returns consistent keys for same inputs", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
-    councilId: "default",
+    councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
   });
 
-  const first = await getUserPublicKeys(externalId, CONTRACT_ID, [0, 5, 10]);
-  const second = await getUserPublicKeys(externalId, CONTRACT_ID, [0, 5, 10]);
+  const first = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 5, 10]);
+  const second = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 5, 10]);
 
   assertEquals(first, second);
 });
 
 Deno.test("getUserPublicKeys - returns different keys for different indices", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
-    councilId: "default",
+    councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
   });
 
-  const keys = await getUserPublicKeys(externalId, CONTRACT_ID, [0, 1]);
+  const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 1]);
   assertEquals(keys.length, 2);
   // Keys at different indices must differ
   assertEquals(keys[0] !== keys[1], true);
 });
 
 Deno.test("getUserPublicKeys - throws for unregistered user", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   await assertRejects(
-    () => getUserPublicKeys("nonexistent-user", CONTRACT_ID, [0]),
+    () => getUserPublicKeys(COUNCIL_ID, "nonexistent-user", CONTRACT_ID, [0]),
     Error,
     "User not registered for this channel",
   );
 });
 
 Deno.test("getUserPublicKeys - throws for suspended user", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = `user-${crypto.randomUUID().slice(0, 8)}`;
   await seedCustodialUser({
@@ -136,31 +137,30 @@ Deno.test("getUserPublicKeys - throws for suspended user", async () => {
   });
 
   await assertRejects(
-    () => getUserPublicKeys(externalId, CONTRACT_ID, [0]),
+    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0]),
     Error,
     "User account is suspended",
   );
 });
 
 Deno.test("getUserPublicKeys - throws for out-of-range indices", async () => {
-  await ensureInitialized();
-  await resetDb();
+  await setupCouncil();
 
   const externalId = Keypair.random().publicKey();
   await registerCustodialUser({
-    councilId: "default",
+    councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
   });
 
   await assertRejects(
-    () => getUserPublicKeys(externalId, CONTRACT_ID, [300]),
+    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [300]),
     Error,
     "out of range",
   );
 
   await assertRejects(
-    () => getUserPublicKeys(externalId, CONTRACT_ID, [-1]),
+    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [-1]),
     Error,
     "out of range",
   );

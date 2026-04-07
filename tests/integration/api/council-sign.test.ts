@@ -10,6 +10,7 @@ import { createMockContext } from "../../test_app.ts";
 import {
   resetDb,
   ensureInitialized,
+  seedCouncilWithRoot,
   seedProvider,
   seedCustodialUser,
   testContractId,
@@ -53,6 +54,7 @@ function adminState(publicKey: string) {
 Deno.test("POST /council/sign/register - creates user with provider JWT", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
   await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
@@ -92,6 +94,7 @@ Deno.test("POST /council/sign/register - rejects non-provider JWT", async () => 
 Deno.test("POST /council/sign/register - returns same data for duplicate registration", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
   await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
@@ -140,6 +143,7 @@ Deno.test("POST /council/sign/register - rejects missing externalId", async () =
 Deno.test("POST /council/sign/keys - returns derived public keys", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
   await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
@@ -233,6 +237,7 @@ Deno.test("POST /council/sign/keys - rejects more than 300 indices", async () =>
 Deno.test("POST /council/sign/spend - returns signatures for valid request", async () => {
   await ensureInitialized();
   await resetDb();
+  await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
   await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });

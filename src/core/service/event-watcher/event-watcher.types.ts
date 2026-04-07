@@ -24,6 +24,6 @@ export interface ChannelAuthEvent {
 export interface EventWatcherConfig {
   /** Channel Auth contract ID to watch */
   contractId: string;
-  /** RPC polling interval in milliseconds */
-  intervalMs: number;
+  /** RPC polling interval in milliseconds (optional, defaults to 30s) */
+  intervalMs?: number;
 }

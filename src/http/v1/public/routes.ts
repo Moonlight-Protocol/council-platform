@@ -70,6 +70,7 @@ async function returnCouncilSummary(ctx: Context, councilId: string) {
       channels: channels.map((ch) => ({
         channelContractId: ch.channelContractId,
         assetCode: ch.assetCode,
+        assetContractId: ch.assetContractId,
         label: ch.label,
       })),
       providers: providers.map((p) => ({

@@ -38,6 +38,7 @@ const MIGRATION = `
     contact_email TEXT,
     council_public_key TEXT NOT NULL,
     opex_public_key TEXT,
+    encrypted_derivation_root TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT,

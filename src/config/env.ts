@@ -1,10 +1,5 @@
 import { selectNetwork } from "@/config/network.ts";
 import { requireEnv } from "@/utils/env/loadEnv.ts";
-import { requireSecretKey } from "@/utils/env/requireSecretKey.ts";
-import { requirePublicKey } from "@/utils/env/requirePublicKey.ts";
-import { LocalSigner, type TransactionConfig } from "@colibri/core";
-import { requireBaseFee } from "@/utils/env/requireBaseFee.ts";
-import { requireContractId } from "@/utils/env/requireContractId.ts";
 import { Server } from "stellar-sdk/rpc";
 
 export const DATABASE_URL = requireEnv("DATABASE_URL");
@@ -16,31 +11,10 @@ export const SERVICE_AUTH_SECRET = requireEnv("SERVICE_AUTH_SECRET");
 export const CHALLENGE_TTL = Number(requireEnv("CHALLENGE_TTL"));
 export const SESSION_TTL = Number(requireEnv("SESSION_TTL"));
 
-// Council contract
-export const CHANNEL_AUTH_ID = requireContractId("CHANNEL_AUTH_ID");
-
-// Council admin key
-export const COUNCIL_SK = requireSecretKey("COUNCIL_SK");
-
-// OpEx account
-export const OPEX_SK = requireSecretKey("OPEX_SECRET");
-const OPEX_PK = requirePublicKey("OPEX_PUBLIC");
-
 // Network
 export const { NETWORK_CONFIG, NETWORK } = selectNetwork(requireEnv("NETWORK"));
-const NETWORK_FEE = requireBaseFee("NETWORK_FEE");
 
 export const NETWORK_RPC_SERVER = new Server(
   NETWORK_CONFIG.rpcUrl as string,
   { allowHttp: NETWORK_CONFIG.allowHttp },
 );
-
-export const COUNCIL_SIGNER = LocalSigner.fromSecret(COUNCIL_SK);
-export const OPEX_SIGNER = LocalSigner.fromSecret(OPEX_SK);
-
-export const TX_CONFIG: TransactionConfig = {
-  source: OPEX_PK,
-  fee: NETWORK_FEE,
-  timeout: 30,
-  signers: [OPEX_SIGNER],
-};

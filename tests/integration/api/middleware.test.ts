@@ -1,16 +1,15 @@
 /**
- * Integration tests for CORS, rate limit, JWT auth, and requireAdmin middleware.
+ * Integration tests for CORS, rate limit, and JWT auth middleware.
  *
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/middleware.test.ts
  */
 import { assertEquals } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { createAdminJwt, createProviderJwt } from "../../test_jwt.ts";
+import { createWalletJwt } from "../../test_jwt.ts";
 
 import { corsMiddleware } from "@/http/middleware/cors.ts";
 import { createRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
 import { jwtMiddleware } from "@/http/middleware/auth/index.ts";
-import { requireAdminMiddleware } from "@/http/middleware/auth/require-admin.ts";
 
 // ---------------------------------------------------------------------------
 // CORS middleware
@@ -195,8 +194,8 @@ Deno.test("jwtMiddleware - rejects invalid JWT token", async () => {
   assertEquals(res.body.message, "JWT verification failed");
 });
 
-Deno.test("jwtMiddleware - accepts valid admin JWT and sets session", async () => {
-  const token = await createAdminJwt("GPUBLICKEYTEST1234");
+Deno.test("jwtMiddleware - accepts valid wallet JWT and sets session", async () => {
+  const token = await createWalletJwt("GPUBLICKEYTEST1234");
   const { ctx } = createMockContext({
     method: "GET",
     headers: { "Authorization": `Bearer ${token}` },
@@ -205,58 +204,5 @@ Deno.test("jwtMiddleware - accepts valid admin JWT and sets session", async () =
   await jwtMiddleware(ctx, async () => { nextCalled = true; });
 
   assertEquals(nextCalled, true);
-  assertEquals(ctx.state.session.type, "admin");
   assertEquals(ctx.state.session.sub, "GPUBLICKEYTEST1234");
-});
-
-Deno.test("jwtMiddleware - accepts valid provider JWT and sets session", async () => {
-  const token = await createProviderJwt("GPROVIDERPUBKEY5678");
-  const { ctx } = createMockContext({
-    method: "GET",
-    headers: { "Authorization": `Bearer ${token}` },
-  });
-  let nextCalled = false;
-  await jwtMiddleware(ctx, async () => { nextCalled = true; });
-
-  assertEquals(nextCalled, true);
-  assertEquals(ctx.state.session.type, "provider");
-  assertEquals(ctx.state.session.sub, "GPROVIDERPUBKEY5678");
-});
-
-// ---------------------------------------------------------------------------
-// requireAdminMiddleware
-// ---------------------------------------------------------------------------
-
-Deno.test("requireAdminMiddleware - allows admin session", async () => {
-  const { ctx } = createMockContext({
-    state: { session: { type: "admin" } },
-  });
-  let nextCalled = false;
-  await requireAdminMiddleware(ctx, async () => { nextCalled = true; });
-
-  assertEquals(nextCalled, true);
-});
-
-Deno.test("requireAdminMiddleware - rejects provider session", async () => {
-  const { ctx, getResponse } = createMockContext({
-    state: { session: { type: "provider" } },
-  });
-  let nextCalled = false;
-  await requireAdminMiddleware(ctx, async () => { nextCalled = true; });
-
-  assertEquals(nextCalled, false);
-  const res = getResponse();
-  assertEquals(res.status, 403);
-  assertEquals(res.body.message, "Admin access required");
-});
-
-Deno.test("requireAdminMiddleware - rejects missing session", async () => {
-  const { ctx, getResponse } = createMockContext({});
-  let nextCalled = false;
-  await requireAdminMiddleware(ctx, async () => { nextCalled = true; });
-
-  assertEquals(nextCalled, false);
-  const res = getResponse();
-  assertEquals(res.status, 403);
-  assertEquals(res.body.message, "Admin access required");
 });

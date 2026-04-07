@@ -21,6 +21,7 @@ function bytesToHex(bytes: Uint8Array): string {
  * Returns the P256 public keys if registered, null if not.
  */
 export async function getRecipientUtxos(
+  councilId: string,
   recipientAddress: string,
   channelContractId: string,
   count: number = 1,
@@ -37,7 +38,7 @@ export async function getRecipientUtxos(
   // Derive requested number of public keys
   const publicKeys: string[] = [];
   for (let i = 0; i < Math.min(count, 300); i++) {
-    const pk = await deriveP256PublicKey(channelContractId, recipientAddress, i);
+    const pk = await deriveP256PublicKey(councilId, channelContractId, recipientAddress, i);
     publicKeys.push(bytesToHex(pk));
   }
 

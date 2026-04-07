@@ -37,7 +37,7 @@ export async function registerCustodialUser(opts: {
   }
 
   // Derive root P256 public key (index 0)
-  const publicKey = await deriveP256PublicKey(channelContractId, externalId, 0);
+  const publicKey = await deriveP256PublicKey(councilId, channelContractId, externalId, 0);
   const p256PublicKeyHex = bytesToHex(publicKey);
 
   const user = await userRepo.create({
@@ -67,11 +67,13 @@ export async function registerCustodialUser(opts: {
 /**
  * Gets the derived P256 public keys for a user at specified UTXO indices.
  *
+ * @param councilId - Council ID (used to load the per-council derivation root)
  * @param externalId - User identifier
  * @param channelContractId - Channel contract ID
  * @param indices - Array of UTXO indices (0-299)
  */
 export async function getUserPublicKeys(
+  councilId: string,
   externalId: string,
   channelContractId: string,
   indices: number[],
@@ -90,7 +92,7 @@ export async function getUserPublicKeys(
     if (index < 0 || index >= 300) {
       throw new Error(`UTXO index ${index} out of range (0-299)`);
     }
-    const pk = await deriveP256PublicKey(channelContractId, externalId, index);
+    const pk = await deriveP256PublicKey(councilId, channelContractId, externalId, index);
     publicKeys.push(bytesToHex(pk));
   }
 
