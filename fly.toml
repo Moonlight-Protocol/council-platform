@@ -8,17 +8,14 @@ primary_region = 'ams'
   MODE = 'production'
   LOG_LEVEL = 'INFO'
 
+  # Rule: only INFRASTRUCTURE + OPERATIONAL config goes here. Council admin
+  # keys, OpEx keys, and channel-auth contract IDs are stored in the database
+  # via the council-console wallet flow — never as env vars. With multi-council
+  # a single platform instance hosts many councils, each with its own keys.
+
   # STELLAR
   NETWORK = 'testnet'
   NETWORK_FEE = '1000000000'
-  CHANNEL_AUTH_ID = 'CAF7DFHTPSYIW5543WBXJODZCDI5WF5SSHBXGMPKFOYPFRDVWFDNBGX7'
-
-  # COUNCIL ADMIN KEY
-  # COUNCIL_SK=set in fly.io env secrets
-
-  # OPEX
-  OPEX_PUBLIC = 'GAKKWPIJFCWX4HFUBTKOBP2JLWIQTNBS5EYWEK4RLBXO37IWB5SSDZYX'
-  # OPEX_SECRET=set in fly.io env secrets
 
   # SERVICE
   SERVICE_DOMAIN = 'moonlight-beta-council-platform.fly.dev'
