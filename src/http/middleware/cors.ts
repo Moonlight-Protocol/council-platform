@@ -1,23 +1,16 @@
 import type { Context, Next } from "@oak/oak";
 import { MODE } from "@/config/env.ts";
 
-const DEFAULT_ORIGINS = [
-  "https://moonlight-council-console.fly.storage.tigris.dev",
-  "https://moonlight-network-dashboard.fly.storage.tigris.dev",
-];
-
-const DEV_ORIGINS = [
-  "http://localhost:3000", "http://localhost:3010", "http://localhost:3020",
-  "http://localhost:3030", "http://localhost:3050", "http://localhost:3060",
-];
-
 const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
 const ALLOWED_ORIGINS = envOrigins
   ? envOrigins.split(",").map((o) => o.trim()).filter(Boolean)
-  : DEFAULT_ORIGINS;
+  : [];
 
 if (MODE === "development") {
-  ALLOWED_ORIGINS.push(...DEV_ORIGINS);
+  ALLOWED_ORIGINS.push(
+    "http://localhost:3000", "http://localhost:3010", "http://localhost:3020",
+    "http://localhost:3030", "http://localhost:3050", "http://localhost:3060",
+  );
 }
 
 function setCorsHeaders(ctx: Context, origin: string) {
