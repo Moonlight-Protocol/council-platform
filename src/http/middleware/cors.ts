@@ -1,7 +1,7 @@
 import type { Context, Next } from "@oak/oak";
 import { MODE } from "@/config/env.ts";
 
-const PRODUCTION_ORIGINS = [
+const DEFAULT_ORIGINS = [
   "https://moonlight-council-console.fly.storage.tigris.dev",
   "https://moonlight-network-dashboard.fly.storage.tigris.dev",
 ];
@@ -11,10 +11,13 @@ const DEV_ORIGINS = [
   "http://localhost:3030", "http://localhost:3050", "http://localhost:3060",
 ];
 
-function isAllowedOrigin(origin: string): boolean {
-  if (PRODUCTION_ORIGINS.includes(origin)) return true;
-  if (MODE === "development" && DEV_ORIGINS.includes(origin)) return true;
-  return false;
+const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
+const ALLOWED_ORIGINS = envOrigins
+  ? envOrigins.split(",").map((o) => o.trim()).filter(Boolean)
+  : DEFAULT_ORIGINS;
+
+if (MODE === "development") {
+  ALLOWED_ORIGINS.push(...DEV_ORIGINS);
 }
 
 function setCorsHeaders(ctx: Context, origin: string) {
@@ -26,7 +29,7 @@ function setCorsHeaders(ctx: Context, origin: string) {
 
 export async function corsMiddleware(ctx: Context, next: Next) {
   const origin = ctx.request.headers.get("Origin");
-  const allowed = origin && isAllowedOrigin(origin);
+  const allowed = origin && ALLOWED_ORIGINS.includes(origin);
 
   if (ctx.request.method === "OPTIONS" && allowed) {
     setCorsHeaders(ctx, origin);
