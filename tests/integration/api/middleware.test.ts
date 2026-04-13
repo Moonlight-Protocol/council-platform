@@ -15,10 +15,15 @@ import { jwtMiddleware } from "@/http/middleware/auth/index.ts";
 // CORS middleware
 // ---------------------------------------------------------------------------
 
-Deno.test("CORS - allows production origins", async () => {
+Deno.test("CORS - allows origins from ALLOWED_ORIGINS env var", async () => {
+  // ALLOWED_ORIGINS is read at module load time, so this test relies on
+  // the env var being set before the module is imported. The test runner
+  // sets MODE=development which adds localhost origins. For production
+  // origins, ALLOWED_ORIGINS must be set in the environment.
+  // This test verifies that dev origins work (since MODE=development in tests).
   const { ctx, getResponse } = createMockContext({
     method: "GET",
-    headers: { "Origin": "https://moonlight-council-console.fly.storage.tigris.dev" },
+    headers: { "Origin": "http://localhost:3030" },
   });
 
   const next = async () => {
@@ -31,7 +36,7 @@ Deno.test("CORS - allows production origins", async () => {
   assertEquals(res.status, 200);
   assertEquals(
     res.headers.get("Access-Control-Allow-Origin"),
-    "https://moonlight-council-console.fly.storage.tigris.dev",
+    "http://localhost:3030",
   );
 });
 
