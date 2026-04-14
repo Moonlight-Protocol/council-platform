@@ -1,6 +1,5 @@
 import { Router } from "@oak/oak";
 import { jwtMiddleware } from "@/http/middleware/auth/index.ts";
-import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
 import { getMetadataHandler, listCouncilsHandler, putMetadataHandler, deleteMetadataHandler } from "@/http/v1/council/metadata.ts";
 import {
   listJurisdictionsHandler,
@@ -68,10 +67,7 @@ councilRouter.get("/council/providers", jwtMiddleware,listProvidersHandler);
 councilRouter.get("/council/providers/:id", jwtMiddleware,getProviderHandler);
 councilRouter.put("/council/providers/:id", jwtMiddleware,updateProviderHandler);
 
-// Signing API (provider JWT — validated internally, rate-limited)
-councilRouter.post("/council/sign/register", jwtMiddleware, lowRateLimitMiddleware, postRegisterUserHandler);
-councilRouter.post("/council/sign/keys", jwtMiddleware, lowRateLimitMiddleware, postGetKeysHandler);
-councilRouter.post("/council/sign/spend", jwtMiddleware, lowRateLimitMiddleware, postSignSpendHandler);
+// Signing API (provider JWT — validated internally, validated internally)
 
 // Escrow (provider JWT for create/lookup, admin for release)
 councilRouter.get("/council/recipient/:address/utxos", jwtMiddleware, getRecipientUtxosHandler);

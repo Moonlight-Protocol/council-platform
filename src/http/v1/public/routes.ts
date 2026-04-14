@@ -4,7 +4,7 @@ import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/coun
 import { CouncilJurisdictionRepository } from "@/persistence/drizzle/repository/council-jurisdiction.repository.ts";
 import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
-import { lowRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
+
 import { createPostJoinRequestHandler } from "@/http/v1/public/join-request.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
@@ -217,11 +217,11 @@ const getMembershipStatus = async (ctx: Context) => {
 
 const publicRouter = new Router();
 
-publicRouter.get("/public/provider/membership-status", lowRateLimitMiddleware, getMembershipStatus);
+publicRouter.get("/public/provider/membership-status", getMembershipStatus);
 publicRouter.get("/public/council", getCouncilSummary);
 publicRouter.get("/public/providers", getPublicProviders);
 publicRouter.get("/public/channels", getPublicChannels);
 publicRouter.get("/public/known-assets", getKnownAssets);
-publicRouter.post("/public/provider/join-request", lowRateLimitMiddleware, createPostJoinRequestHandler(joinRequestRepo));
+publicRouter.post("/public/provider/join-request", createPostJoinRequestHandler(joinRequestRepo));
 
 export default publicRouter;

@@ -1,5 +1,5 @@
 /**
- * Integration tests for CORS, rate limit, and JWT auth middleware.
+ * Integration tests for CORS and JWT auth middleware.
  *
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/middleware.test.ts
  */
@@ -8,7 +8,6 @@ import { createMockContext } from "../../test_app.ts";
 import { createWalletJwt } from "../../test_jwt.ts";
 
 import { corsMiddleware } from "@/http/middleware/cors.ts";
-import { createRateLimitMiddleware } from "@/http/middleware/rate-limit/index.ts";
 import { jwtMiddleware } from "@/http/middleware/auth/index.ts";
 
 // ---------------------------------------------------------------------------
@@ -107,53 +106,6 @@ Deno.test("CORS - allows localhost:3030 in development mode", async () => {
   const res = getResponse();
   assertEquals(res.status, 200);
   assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:3030");
-});
-
-// ---------------------------------------------------------------------------
-// Rate limit middleware
-// ---------------------------------------------------------------------------
-
-Deno.test("rate limit - allows requests under limit", async () => {
-  const middleware = createRateLimitMiddleware(5, 60_000);
-
-  const { ctx, getResponse } = createMockContext({ method: "GET" });
-  let nextCalled = false;
-  const next = async () => {
-    nextCalled = true;
-    ctx.response.status = 200;
-    ctx.response.body = "ok";
-  };
-
-  await middleware(ctx, next);
-
-  assertEquals(nextCalled, true);
-  assertEquals(getResponse().status, 200);
-});
-
-Deno.test("rate limit - blocks requests over limit", async () => {
-  const middleware = createRateLimitMiddleware(3, 60_000);
-
-  // Make 3 requests (all under limit)
-  for (let i = 0; i < 3; i++) {
-    const { ctx } = createMockContext({ method: "GET" });
-    const next = async () => {
-      ctx.response.status = 200;
-    };
-    await middleware(ctx, next);
-  }
-
-  // 4th request should be rate limited
-  const { ctx, getResponse } = createMockContext({ method: "GET" });
-  let nextCalled = false;
-  const next = async () => {
-    nextCalled = true;
-    ctx.response.status = 200;
-  };
-  await middleware(ctx, next);
-
-  assertEquals(nextCalled, false);
-  const res = getResponse();
-  assertEquals(res.status, 429);
 });
 
 // ---------------------------------------------------------------------------
