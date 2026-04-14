@@ -67,7 +67,10 @@ councilRouter.get("/council/providers", jwtMiddleware,listProvidersHandler);
 councilRouter.get("/council/providers/:id", jwtMiddleware,getProviderHandler);
 councilRouter.put("/council/providers/:id", jwtMiddleware,updateProviderHandler);
 
-// Signing API (provider JWT — validated internally, validated internally)
+// Signing API (provider JWT — validated internally)
+councilRouter.post("/council/sign/register", jwtMiddleware, postRegisterUserHandler);
+councilRouter.post("/council/sign/keys", jwtMiddleware, postGetKeysHandler);
+councilRouter.post("/council/sign/spend", jwtMiddleware, postSignSpendHandler);
 
 // Escrow (provider JWT for create/lookup, admin for release)
 councilRouter.get("/council/recipient/:address/utxos", jwtMiddleware, getRecipientUtxosHandler);
