@@ -1,0 +1,23 @@
+name: Deploy to Mainnet
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-mainnet
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: mainnet
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy -a moonlight-mainnet-council --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
