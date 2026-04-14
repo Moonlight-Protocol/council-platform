@@ -39,6 +39,8 @@ jobs:
     env:
       REGISTRY: ghcr.io
       IMAGE_NAME: moonlight-protocol/council-platform
+    outputs:
+      image: ghcr.io/moonlight-protocol/council-platform:pr-${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,3 +55,11 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/moonlight-protocol/council-platform:pr-${{ github.event.pull_request.head.sha }}
+
+  lifecycle:
+    needs: build
+    uses: Moonlight-Protocol/local-dev/.github/workflows/lifecycle-reusable.yml@main
+    with:
+      council_image_override: ${{ needs.build.outputs.image }}
+    secrets:
+      E2E_TRIGGER_TOKEN: ${{ secrets.E2E_TRIGGER_TOKEN }}
