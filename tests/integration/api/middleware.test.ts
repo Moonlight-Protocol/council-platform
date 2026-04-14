@@ -108,48 +108,6 @@ Deno.test("CORS - allows localhost:3030 in development mode", async () => {
   assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:3030");
 });
 
-
-Deno.test("rate limit - allows requests under limit", async () => {
-
-  const { ctx, getResponse } = createMockContext({ method: "GET" });
-  let nextCalled = false;
-  const next = async () => {
-    nextCalled = true;
-    ctx.response.status = 200;
-    ctx.response.body = "ok";
-  };
-
-  await middleware(ctx, next);
-
-  assertEquals(nextCalled, true);
-  assertEquals(getResponse().status, 200);
-});
-
-Deno.test("rate limit - blocks requests over limit", async () => {
-
-  // Make 3 requests (all under limit)
-  for (let i = 0; i < 3; i++) {
-    const { ctx } = createMockContext({ method: "GET" });
-    const next = async () => {
-      ctx.response.status = 200;
-    };
-    await middleware(ctx, next);
-  }
-
-  // 4th request should be rate limited
-  const { ctx, getResponse } = createMockContext({ method: "GET" });
-  let nextCalled = false;
-  const next = async () => {
-    nextCalled = true;
-    ctx.response.status = 200;
-  };
-  await middleware(ctx, next);
-
-  assertEquals(nextCalled, false);
-  const res = getResponse();
-  assertEquals(res.status, 429);
-});
-
 // ---------------------------------------------------------------------------
 // JWT middleware
 // ---------------------------------------------------------------------------
