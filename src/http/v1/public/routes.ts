@@ -26,11 +26,16 @@ function getCouncilId(ctx: Context): string | null {
  */
 const getCouncilSummary = async (ctx: Context) => {
   try {
-    const councilId = getCouncilId(ctx);
+    let councilId = getCouncilId(ctx);
     if (!councilId) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "councilId query parameter is required" };
-      return;
+      // Single-council deployment: return the first (only) council
+      const all = await metadataRepo.listAll();
+      if (all.length === 0) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "No councils configured" };
+        return;
+      }
+      councilId = all[0].id;
     }
     await returnCouncilSummary(ctx, councilId);
   } catch (error) {
