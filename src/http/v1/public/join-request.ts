@@ -59,6 +59,8 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
       }
 
       const { publicKey, label, contactEmail, jurisdictions, callbackEndpoint } = data;
+      // Provider-platform includes its base URL alongside the signed envelope
+      const providerUrl: string | null = typeof body.providerUrl === "string" ? body.providerUrl.trim() : null;
       // For signed payloads, councilId must come from inside the verified envelope.
       // Query param fallback only for unsigned plain requests.
       const councilId = signature
@@ -156,6 +158,7 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
         contactEmail: contactEmail?.trim() ?? null,
         jurisdictions: jurisdictions ? JSON.stringify(jurisdictions) : null,
         callbackEndpoint: callbackEndpoint?.trim() ?? null,
+        providerUrl,
         signature,
         status: JoinRequestStatus.PENDING,
         createdAt: new Date(),
