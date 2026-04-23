@@ -29,6 +29,13 @@
       "when": 1775145837843,
       "tag": "0003_add_provider_url",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1745366400000,
+      "tag": "0004_add_waitlist_requests",
+      "breakpoints": true
     }
   ]
 }
