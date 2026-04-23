@@ -76,6 +76,7 @@ async function returnCouncilSummary(ctx: Context, councilId: string) {
       providers: providers.map((p) => ({
         publicKey: p.publicKey,
         label: p.label,
+        providerUrl: p.providerUrl,
       })),
     },
   };

@@ -174,6 +174,7 @@ export const approveJoinRequestHandler = async (ctx: Context) => {
           status: ProviderStatus.ACTIVE,
           label: row.label,
           contactEmail: row.contactEmail,
+          providerUrl: row.providerUrl,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
