@@ -2,6 +2,7 @@ import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CustodialUserRepository } from "@/persistence/drizzle/repository/custodial-user.repository.ts";
 import { CustodialUserStatus } from "@/persistence/drizzle/entity/custodial-user.entity.ts";
 import { deriveP256PublicKey } from "@/core/service/custody/key-derivation.service.ts";
+import { withSpan } from "@/core/tracing.ts";
 import { LOG } from "@/config/logger.ts";
 
 const userRepo = new CustodialUserRepository(drizzleClient);
@@ -16,7 +17,7 @@ const userRepo = new CustodialUserRepository(drizzleClient);
  * @param channelContractId - The Privacy Channel contract this user will use
  * @param providerPublicKey - The PP that onboarded this user
  */
-export async function registerCustodialUser(opts: {
+export function registerCustodialUser(opts: {
   councilId: string;
   externalId: string;
   channelContractId: string;
@@ -27,41 +28,59 @@ export async function registerCustodialUser(opts: {
 }> {
   const { councilId, externalId, channelContractId, providerPublicKey } = opts;
 
-  // Check if user already registered for this channel
-  const existing = await userRepo.findByExternalIdAndChannel(externalId, channelContractId);
-  if (existing) {
+  return withSpan("Custody.registerUser", async (span) => {
+    span.setAttribute("council.id", councilId);
+    span.setAttribute("channel.contract_id", channelContractId);
+
+    // Check if user already registered for this channel
+    const existing = await userRepo.findByExternalIdAndChannel(
+      externalId,
+      channelContractId,
+    );
+    if (existing) {
+      span.setAttribute("user.already_registered", true);
+      span.setAttribute("user.id", existing.id);
+      return {
+        userId: existing.id,
+        p256PublicKeyHex: existing.p256PublicKeyHex,
+      };
+    }
+
+    // Derive root P256 public key (index 0)
+    const publicKey = await deriveP256PublicKey(
+      councilId,
+      channelContractId,
+      externalId,
+      0,
+    );
+    const p256PublicKeyHex = bytesToHex(publicKey);
+
+    const user = await userRepo.create({
+      id: crypto.randomUUID(),
+      councilId,
+      externalId,
+      channelContractId,
+      p256PublicKeyHex,
+      status: CustodialUserStatus.ACTIVE,
+      registeredByProvider: providerPublicKey ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    span.setAttribute("user.id", user.id);
+    span.setAttribute("user.already_registered", false);
+
+    LOG.info("Custodial user registered", {
+      userId: user.id,
+      externalId,
+      channelContractId,
+    });
+
     return {
-      userId: existing.id,
-      p256PublicKeyHex: existing.p256PublicKeyHex,
+      userId: user.id,
+      p256PublicKeyHex: user.p256PublicKeyHex,
     };
-  }
-
-  // Derive root P256 public key (index 0)
-  const publicKey = await deriveP256PublicKey(councilId, channelContractId, externalId, 0);
-  const p256PublicKeyHex = bytesToHex(publicKey);
-
-  const user = await userRepo.create({
-    id: crypto.randomUUID(),
-    councilId,
-    externalId,
-    channelContractId,
-    p256PublicKeyHex,
-    status: CustodialUserStatus.ACTIVE,
-    registeredByProvider: providerPublicKey ?? null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
   });
-
-  LOG.info("Custodial user registered", {
-    userId: user.id,
-    externalId,
-    channelContractId,
-  });
-
-  return {
-    userId: user.id,
-    p256PublicKeyHex: user.p256PublicKeyHex,
-  };
 }
 
 /**
@@ -72,31 +91,45 @@ export async function registerCustodialUser(opts: {
  * @param channelContractId - Channel contract ID
  * @param indices - Array of UTXO indices (0-299)
  */
-export async function getUserPublicKeys(
+export function getUserPublicKeys(
   councilId: string,
   externalId: string,
   channelContractId: string,
   indices: number[],
 ): Promise<string[]> {
-  const user = await userRepo.findByExternalIdAndChannel(externalId, channelContractId);
-  if (!user) {
-    throw new Error("User not registered for this channel");
-  }
+  return withSpan("Custody.getUserPublicKeys", async (span) => {
+    span.setAttribute("council.id", councilId);
+    span.setAttribute("channel.contract_id", channelContractId);
+    span.setAttribute("indices.count", indices.length);
 
-  if (user.status !== CustodialUserStatus.ACTIVE) {
-    throw new Error("User account is suspended");
-  }
-
-  const publicKeys: string[] = [];
-  for (const index of indices) {
-    if (index < 0 || index >= 300) {
-      throw new Error(`UTXO index ${index} out of range (0-299)`);
+    const user = await userRepo.findByExternalIdAndChannel(
+      externalId,
+      channelContractId,
+    );
+    if (!user) {
+      throw new Error("User not registered for this channel");
     }
-    const pk = await deriveP256PublicKey(councilId, channelContractId, externalId, index);
-    publicKeys.push(bytesToHex(pk));
-  }
 
-  return publicKeys;
+    if (user.status !== CustodialUserStatus.ACTIVE) {
+      throw new Error("User account is suspended");
+    }
+
+    const publicKeys: string[] = [];
+    for (const index of indices) {
+      if (index < 0 || index >= 300) {
+        throw new Error(`UTXO index ${index} out of range (0-299)`);
+      }
+      const pk = await deriveP256PublicKey(
+        councilId,
+        channelContractId,
+        externalId,
+        index,
+      );
+      publicKeys.push(bytesToHex(pk));
+    }
+
+    return publicKeys;
+  });
 }
 
 function bytesToHex(bytes: Uint8Array): string {
