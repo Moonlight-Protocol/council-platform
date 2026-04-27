@@ -83,6 +83,62 @@ async function returnCouncilSummary(ctx: Context, councilId: string) {
 }
 
 /**
+ * GET /public/councils
+ * Lists every council with the same summary shape as GET /public/council.
+ * No auth required. Used by the public network dashboard.
+ *
+ * Note: aggregation is N+1 on the council count. Acceptable while the
+ * registered count is small; revisit if it grows.
+ */
+const listAllCouncils = async (ctx: Context) => {
+  try {
+    const all = await metadataRepo.listAll();
+    const councils = await Promise.all(
+      all.map(async (m) => {
+        const [jurisdictions, channels, providers] = await Promise.all([
+          jurisdictionRepo.listAll(m.id),
+          channelRepo.listAll(m.id),
+          providerRepo.listActive(m.id),
+        ]);
+        return {
+          council: {
+            name: m.name,
+            description: m.description,
+            contactEmail: m.contactEmail,
+            channelAuthId: m.id,
+            councilPublicKey: m.councilPublicKey,
+          },
+          jurisdictions: jurisdictions.map((j) => ({
+            countryCode: j.countryCode,
+            label: j.label,
+          })),
+          channels: channels.map((ch) => ({
+            channelContractId: ch.channelContractId,
+            assetCode: ch.assetCode,
+            assetContractId: ch.assetContractId,
+            label: ch.label,
+          })),
+          providers: providers.map((p) => ({
+            publicKey: p.publicKey,
+            label: p.label,
+            providerUrl: p.providerUrl,
+          })),
+        };
+      }),
+    );
+
+    ctx.response.status = Status.OK;
+    ctx.response.body = { message: "Councils retrieved", data: councils };
+  } catch (error) {
+    LOG.error("Failed to list councils", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    ctx.response.status = Status.InternalServerError;
+    ctx.response.body = { message: "Failed to retrieve councils" };
+  }
+};
+
+/**
  * GET /public/providers?councilId=...
  * Lists active providers. No auth required.
  */
@@ -219,6 +275,7 @@ const getMembershipStatus = async (ctx: Context) => {
 const publicRouter = new Router();
 
 publicRouter.get("/public/provider/membership-status", getMembershipStatus);
+publicRouter.get("/public/councils", listAllCouncils);
 publicRouter.get("/public/council", getCouncilSummary);
 publicRouter.get("/public/providers", getPublicProviders);
 publicRouter.get("/public/channels", getPublicChannels);

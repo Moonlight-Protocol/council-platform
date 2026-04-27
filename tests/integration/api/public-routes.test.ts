@@ -37,6 +37,9 @@ Deno.test("publicRouter registers all expected routes", () => {
   const council = routes.find((r) => r.path === "/public/council" && r.methods.includes("GET"));
   assertExists(council, "GET /public/council should be registered");
 
+  const councils = routes.find((r) => r.path === "/public/councils" && r.methods.includes("GET"));
+  assertExists(councils, "GET /public/councils should be registered");
+
   const providers = routes.find((r) => r.path === "/public/providers" && r.methods.includes("GET"));
   assertExists(providers, "GET /public/providers should be registered");
 
