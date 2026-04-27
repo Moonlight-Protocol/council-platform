@@ -108,6 +108,23 @@ Deno.test("CORS - allows localhost:3030 in development mode", async () => {
   assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:3030");
 });
 
+Deno.test("CORS - allows arbitrary localhost port in development mode", async () => {
+  const { ctx, getResponse } = createMockContext({
+    method: "GET",
+    headers: { "Origin": "http://localhost:9999" },
+  });
+
+  const next = async () => {
+    ctx.response.status = 200;
+    ctx.response.body = "ok";
+  };
+  await corsMiddleware(ctx, next);
+
+  const res = getResponse();
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:9999");
+});
+
 // ---------------------------------------------------------------------------
 // JWT middleware
 // ---------------------------------------------------------------------------
