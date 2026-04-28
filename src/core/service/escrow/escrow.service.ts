@@ -4,6 +4,7 @@ import { CustodialUserRepository } from "@/persistence/drizzle/repository/custod
 import { EscrowStatus } from "@/persistence/drizzle/entity/council-escrow.entity.ts";
 import { CustodialUserStatus } from "@/persistence/drizzle/entity/custodial-user.entity.ts";
 import { deriveP256PublicKey } from "@/core/service/custody/key-derivation.service.ts";
+import { withSpan } from "@/core/tracing.ts";
 import { LOG } from "@/config/logger.ts";
 
 const escrowRepo = new CouncilEscrowRepository(drizzleClient);
@@ -20,35 +21,49 @@ function bytesToHex(bytes: Uint8Array): string {
  * Check if a recipient has UTXO addresses for a given channel.
  * Returns the P256 public keys if registered, null if not.
  */
-export async function getRecipientUtxos(
+export function getRecipientUtxos(
   councilId: string,
   recipientAddress: string,
   channelContractId: string,
   count: number = 1,
 ): Promise<{ registered: boolean; publicKeys: string[] }> {
-  const user = await userRepo.findByExternalIdAndChannel(
-    recipientAddress,
-    channelContractId,
-  );
+  return withSpan("Escrow.getRecipientUtxos", async (span) => {
+    span.setAttribute("council.id", councilId);
+    span.setAttribute("channel.contract_id", channelContractId);
+    span.setAttribute("utxo.count", count);
 
-  if (!user || user.status !== CustodialUserStatus.ACTIVE) {
-    return { registered: false, publicKeys: [] };
-  }
+    const user = await userRepo.findByExternalIdAndChannel(
+      recipientAddress,
+      channelContractId,
+    );
 
-  // Derive requested number of public keys
-  const publicKeys: string[] = [];
-  for (let i = 0; i < Math.min(count, 300); i++) {
-    const pk = await deriveP256PublicKey(councilId, channelContractId, recipientAddress, i);
-    publicKeys.push(bytesToHex(pk));
-  }
+    if (!user || user.status !== CustodialUserStatus.ACTIVE) {
+      span.setAttribute("user.registered", false);
+      return { registered: false, publicKeys: [] };
+    }
 
-  return { registered: true, publicKeys };
+    span.setAttribute("user.registered", true);
+
+    // Derive requested number of public keys
+    const publicKeys: string[] = [];
+    for (let i = 0; i < Math.min(count, 300); i++) {
+      const pk = await deriveP256PublicKey(
+        councilId,
+        channelContractId,
+        recipientAddress,
+        i,
+      );
+      publicKeys.push(bytesToHex(pk));
+    }
+
+    return { registered: true, publicKeys };
+  });
 }
 
 /**
  * Create an escrow record. Called by PPs when sending to a non-KYC'd recipient.
  */
-export async function createEscrow(opts: {
+export function createEscrow(opts: {
   councilId: string;
   senderAddress: string;
   recipientAddress: string;
@@ -57,38 +72,46 @@ export async function createEscrow(opts: {
   channelContractId: string;
   submittedByProvider: string;
 }): Promise<{ escrowId: string }> {
-  if (opts.amount <= 0n) {
-    throw new Error("Amount must be positive");
-  }
+  return withSpan("Escrow.create", async (span) => {
+    span.setAttribute("council.id", opts.councilId);
+    span.setAttribute("channel.contract_id", opts.channelContractId);
+    span.setAttribute("escrow.amount", opts.amount.toString());
+    span.setAttribute("escrow.asset_code", opts.assetCode);
 
-  const escrow = await escrowRepo.create({
-    id: crypto.randomUUID(),
-    councilId: opts.councilId,
-    senderAddress: opts.senderAddress,
-    recipientAddress: opts.recipientAddress,
-    amount: opts.amount,
-    assetCode: opts.assetCode,
-    channelContractId: opts.channelContractId,
-    status: EscrowStatus.HELD,
-    submittedByProvider: opts.submittedByProvider,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    if (opts.amount <= 0n) {
+      throw new Error("Amount must be positive");
+    }
+
+    const escrow = await escrowRepo.create({
+      id: crypto.randomUUID(),
+      councilId: opts.councilId,
+      senderAddress: opts.senderAddress,
+      recipientAddress: opts.recipientAddress,
+      amount: opts.amount,
+      assetCode: opts.assetCode,
+      channelContractId: opts.channelContractId,
+      status: EscrowStatus.HELD,
+      submittedByProvider: opts.submittedByProvider,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    span.setAttribute("escrow.id", escrow.id);
+    LOG.info("Escrow created", {
+      escrowId: escrow.id,
+      recipient: opts.recipientAddress,
+      amount: opts.amount.toString(),
+      channel: opts.channelContractId,
+    });
+
+    return { escrowId: escrow.id };
   });
-
-  LOG.info("Escrow created", {
-    escrowId: escrow.id,
-    recipient: opts.recipientAddress,
-    amount: opts.amount.toString(),
-    channel: opts.channelContractId,
-  });
-
-  return { escrowId: escrow.id };
 }
 
 /**
  * Get escrow summary for a recipient.
  */
-export async function getEscrowSummary(recipientAddress: string): Promise<{
+export function getEscrowSummary(recipientAddress: string): Promise<{
   pendingCount: number;
   pendingTotal: bigint;
   escrows: Array<{
@@ -99,20 +122,24 @@ export async function getEscrowSummary(recipientAddress: string): Promise<{
     createdAt: string;
   }>;
 }> {
-  const held = await escrowRepo.findHeldForRecipient(recipientAddress);
-  const pendingTotal = held.reduce((sum, e) => sum + e.amount, 0n);
+  return withSpan("Escrow.getSummary", async (span) => {
+    const held = await escrowRepo.findHeldForRecipient(recipientAddress);
+    const pendingTotal = held.reduce((sum, e) => sum + e.amount, 0n);
+    span.setAttribute("escrow.pending_count", held.length);
+    span.setAttribute("escrow.pending_total", pendingTotal.toString());
 
-  return {
-    pendingCount: held.length,
-    pendingTotal,
-    escrows: held.map((e) => ({
-      id: e.id,
-      senderAddress: e.senderAddress,
-      amount: e.amount.toString(),
-      assetCode: e.assetCode,
-      createdAt: e.createdAt.toISOString(),
-    })),
-  };
+    return {
+      pendingCount: held.length,
+      pendingTotal,
+      escrows: held.map((e) => ({
+        id: e.id,
+        senderAddress: e.senderAddress,
+        amount: e.amount.toString(),
+        assetCode: e.assetCode,
+        createdAt: e.createdAt.toISOString(),
+      })),
+    };
+  });
 }
 
 /**
@@ -125,7 +152,7 @@ export async function getEscrowSummary(recipientAddress: string): Promise<{
  * The actual on-chain UTXO creation is a TODO that requires the SDK's
  * transaction builder integration.
  */
-export async function releaseEscrowsForRecipient(
+export function releaseEscrowsForRecipient(
   recipientAddress: string,
   channelContractId: string,
 ): Promise<{
@@ -133,60 +160,69 @@ export async function releaseEscrowsForRecipient(
   totalReleased: bigint;
   totalFees: bigint;
 }> {
-  const held = await escrowRepo.findHeldForRecipient(recipientAddress);
-  if (held.length === 0) {
-    return { released: 0, totalReleased: 0n, totalFees: 0n };
-  }
+  return withSpan("Escrow.releaseForRecipient", async (span) => {
+    span.setAttribute("channel.contract_id", channelContractId);
 
-  // Ensure user is registered
-  const user = await userRepo.findByExternalIdAndChannel(
-    recipientAddress,
-    channelContractId,
-  );
-  if (!user || user.status !== CustodialUserStatus.ACTIVE) {
-    throw new Error("Recipient is not registered or not active");
-  }
+    const held = await escrowRepo.findHeldForRecipient(recipientAddress);
+    if (held.length === 0) {
+      span.setAttribute("escrow.released_count", 0);
+      return { released: 0, totalReleased: 0n, totalFees: 0n };
+    }
 
-  let totalReleased = 0n;
-  let totalFees = 0n;
+    // Ensure user is registered
+    const user = await userRepo.findByExternalIdAndChannel(
+      recipientAddress,
+      channelContractId,
+    );
+    if (!user || user.status !== CustodialUserStatus.ACTIVE) {
+      throw new Error("Recipient is not registered or not active");
+    }
 
-  for (const escrow of held) {
-    if (escrow.channelContractId !== channelContractId) continue;
+    let totalReleased = 0n;
+    let totalFees = 0n;
 
-    const fee = DEFAULT_ESCROW_FEE;
-    const releaseAmount = escrow.amount > fee ? escrow.amount - fee : 0n;
+    for (const escrow of held) {
+      if (escrow.channelContractId !== channelContractId) continue;
 
-    // TODO: Build Moonlight transaction to create UTXOs at recipient's
-    // derived P256 addresses. The council acts as both key holder and
-    // transaction submitter — no PP needed.
-    //
-    // Steps:
-    // 1. Derive P256 keys for recipient at UTXO indices
-    // 2. Build CREATE operations for releaseAmount
-    // 3. Build DEPOSIT from council OpEx (covers the UTXO funding)
-    // 4. Sign P256 spends with council-derived keys
-    // 5. Sign bundle with council provider key
-    // 6. Submit to Stellar
+      const fee = DEFAULT_ESCROW_FEE;
+      const releaseAmount = escrow.amount > fee ? escrow.amount - fee : 0n;
 
-    await escrowRepo.update(escrow.id, {
-      status: EscrowStatus.RELEASED,
-      feeCharged: fee,
+      // TODO: Build Moonlight transaction to create UTXOs at recipient's
+      // derived P256 addresses. The council acts as both key holder and
+      // transaction submitter — no PP needed.
+      //
+      // Steps:
+      // 1. Derive P256 keys for recipient at UTXO indices
+      // 2. Build CREATE operations for releaseAmount
+      // 3. Build DEPOSIT from council OpEx (covers the UTXO funding)
+      // 4. Sign P256 spends with council-derived keys
+      // 5. Sign bundle with council provider key
+      // 6. Submit to Stellar
+
+      await escrowRepo.update(escrow.id, {
+        status: EscrowStatus.RELEASED,
+        feeCharged: fee,
+      });
+
+      totalReleased += releaseAmount;
+      totalFees += fee;
+    }
+
+    span.setAttribute("escrow.released_count", held.length);
+    span.setAttribute("escrow.total_released", totalReleased.toString());
+    span.setAttribute("escrow.total_fees", totalFees.toString());
+
+    LOG.info("Escrows released for recipient", {
+      recipient: recipientAddress,
+      released: held.length,
+      totalReleased: totalReleased.toString(),
+      totalFees: totalFees.toString(),
     });
 
-    totalReleased += releaseAmount;
-    totalFees += fee;
-  }
-
-  LOG.info("Escrows released for recipient", {
-    recipient: recipientAddress,
-    released: held.length,
-    totalReleased: totalReleased.toString(),
-    totalFees: totalFees.toString(),
+    return {
+      released: held.length,
+      totalReleased,
+      totalFees,
+    };
   });
-
-  return {
-    released: held.length,
-    totalReleased,
-    totalFees,
-  };
 }
