@@ -1,4 +1,10 @@
-import { pgTable, text, bigint, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { createBaseColumns } from "@/persistence/drizzle/entity/base.entity.ts";
 
 export const councilChannel = pgTable("council_channels", {
@@ -15,7 +21,10 @@ export const councilChannel = pgTable("council_channels", {
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   ...createBaseColumns(),
 }, (table) => [
-  uniqueIndex("idx_channel_council_contract").on(table.councilId, table.channelContractId),
+  uniqueIndex("idx_channel_council_contract").on(
+    table.councilId,
+    table.channelContractId,
+  ),
 ]);
 
 export type CouncilChannel = typeof councilChannel.$inferSelect;

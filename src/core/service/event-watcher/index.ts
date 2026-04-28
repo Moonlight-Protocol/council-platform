@@ -46,7 +46,10 @@ function makeHandler(councilId: string) {
           ledger: event.ledger,
         });
 
-        const existing = await providerRepo.findByPublicKey(councilId, event.address);
+        const existing = await providerRepo.findByPublicKey(
+          councilId,
+          event.address,
+        );
         if (existing) {
           if (existing.status === ProviderStatus.REMOVED) {
             await providerRepo.update(existing.id, {
@@ -54,7 +57,10 @@ function makeHandler(councilId: string) {
               registeredByEvent: `ledger:${event.ledger}`,
               removedByEvent: null,
             });
-            LOG.info("Provider re-activated", { councilId, address: event.address });
+            LOG.info("Provider re-activated", {
+              councilId,
+              address: event.address,
+            });
           }
         } else {
           await providerRepo.create({
@@ -66,7 +72,10 @@ function makeHandler(councilId: string) {
             createdAt: new Date(),
             updatedAt: new Date(),
           });
-          LOG.info("Provider registered", { councilId, address: event.address });
+          LOG.info("Provider registered", {
+            councilId,
+            address: event.address,
+          });
         }
         break;
       }
@@ -78,13 +87,19 @@ function makeHandler(councilId: string) {
           ledger: event.ledger,
         });
 
-        const provider = await providerRepo.findByPublicKey(councilId, event.address);
+        const provider = await providerRepo.findByPublicKey(
+          councilId,
+          event.address,
+        );
         if (provider) {
           await providerRepo.update(provider.id, {
             status: ProviderStatus.REMOVED,
             removedByEvent: `ledger:${event.ledger}`,
           });
-          LOG.info("Provider marked as removed", { councilId, address: event.address });
+          LOG.info("Provider marked as removed", {
+            councilId,
+            address: event.address,
+          });
         }
         break;
       }

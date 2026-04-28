@@ -2,7 +2,10 @@ import { type Context, Status } from "@oak/oak";
 import { Keypair } from "stellar-sdk";
 import type { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { JoinRequestStatus } from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
-import { verifyPayload, type SignedPayload } from "@/core/crypto/signed-payload.ts";
+import {
+  type SignedPayload,
+  verifyPayload,
+} from "@/core/crypto/signed-payload.ts";
 import { LOG } from "@/config/logger.ts";
 
 interface JoinRequestPayload {
@@ -18,7 +21,9 @@ interface JoinRequestPayload {
  * Creates a POST /public/provider/join-request handler.
  * Accepts either a plain body or a SignedPayload envelope.
  */
-export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinRequestRepository) {
+export function createPostJoinRequestHandler(
+  joinRequestRepo: ProviderJoinRequestRepository,
+) {
   return async (ctx: Context) => {
     try {
       const body = await ctx.request.body.json();
@@ -50,7 +55,9 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
         // Ensure envelope publicKey matches payload publicKey
         if (envelope.publicKey !== data.publicKey) {
           ctx.response.status = Status.BadRequest;
-          ctx.response.body = { message: "Signer does not match payload publicKey" };
+          ctx.response.body = {
+            message: "Signer does not match payload publicKey",
+          };
           return;
         }
       } else {
@@ -58,14 +65,23 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
         data = body as JoinRequestPayload;
       }
 
-      const { publicKey, label, contactEmail, jurisdictions, callbackEndpoint } = data;
+      const {
+        publicKey,
+        label,
+        contactEmail,
+        jurisdictions,
+        callbackEndpoint,
+      } = data;
       // Provider-platform includes its base URL alongside the signed envelope
-      const providerUrl: string | null = typeof body.providerUrl === "string" ? body.providerUrl.trim() : null;
+      const providerUrl: string | null = typeof body.providerUrl === "string"
+        ? body.providerUrl.trim()
+        : null;
       // For signed payloads, councilId must come from inside the verified envelope.
       // Query param fallback only for unsigned plain requests.
       const councilId = signature
         ? (data.councilId || "")
-        : (data.councilId || ctx.request.url.searchParams.get("councilId") || "");
+        : (data.councilId || ctx.request.url.searchParams.get("councilId") ||
+          "");
       if (!councilId) {
         ctx.response.status = Status.BadRequest;
         ctx.response.body = { message: "councilId is required" };
@@ -104,18 +120,24 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
       }
       if (contactEmail && contactEmail.length > 200) {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "contactEmail must be at most 200 characters" };
+        ctx.response.body = {
+          message: "contactEmail must be at most 200 characters",
+        };
         return;
       }
 
       if (jurisdictions && !Array.isArray(jurisdictions)) {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "jurisdictions must be an array of country codes" };
+        ctx.response.body = {
+          message: "jurisdictions must be an array of country codes",
+        };
         return;
       }
       if (jurisdictions && jurisdictions.length > 50) {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "jurisdictions must have at most 50 entries" };
+        ctx.response.body = {
+          message: "jurisdictions must have at most 50 entries",
+        };
         return;
       }
 
@@ -126,7 +148,9 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
       }
       if (callbackEndpoint && callbackEndpoint.length > 500) {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "callbackEndpoint must be at most 500 characters" };
+        ctx.response.body = {
+          message: "callbackEndpoint must be at most 500 characters",
+        };
         return;
       }
       if (callbackEndpoint) {
@@ -137,16 +161,23 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
           }
         } catch {
           ctx.response.status = Status.BadRequest;
-          ctx.response.body = { message: "callbackEndpoint must be a valid HTTP(S) URL" };
+          ctx.response.body = {
+            message: "callbackEndpoint must be a valid HTTP(S) URL",
+          };
           return;
         }
       }
 
       // Check for existing pending request for this council
-      const existing = await joinRequestRepo.findPendingByPublicKey(councilId, publicKey);
+      const existing = await joinRequestRepo.findPendingByPublicKey(
+        councilId,
+        publicKey,
+      );
       if (existing) {
         ctx.response.status = Status.Conflict;
-        ctx.response.body = { message: "A pending join request already exists for this public key" };
+        ctx.response.body = {
+          message: "A pending join request already exists for this public key",
+        };
         return;
       }
 
@@ -181,7 +212,9 @@ export function createPostJoinRequestHandler(joinRequestRepo: ProviderJoinReques
         ctx.response.status = Status.BadRequest;
         ctx.response.body = { message: "Invalid request body" };
       } else {
-        LOG.error("Failed to create join request", { error: error instanceof Error ? error.message : String(error) });
+        LOG.error("Failed to create join request", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         ctx.response.status = Status.InternalServerError;
         ctx.response.body = { message: "Failed to submit join request" };
       }

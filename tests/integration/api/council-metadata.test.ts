@@ -3,15 +3,20 @@
  *
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-metadata.test.ts
  */
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { Keypair } from "stellar-sdk";
 import { createMockContext } from "../../test_app.ts";
-import { resetDb, ensureInitialized, seedCouncilMetadata, testContractId, ADMIN_KEYPAIR } from "../../test_helpers.ts";
+import {
+  ADMIN_KEYPAIR,
+  ensureInitialized,
+  resetDb,
+  seedCouncilMetadata,
+} from "../../test_helpers.ts";
 
 import {
+  deleteMetadataHandler,
   getMetadataHandler,
   putMetadataHandler,
-  deleteMetadataHandler,
 } from "@/http/v1/council/metadata.ts";
 
 // Admin session state (simulates successful JWT middleware)
@@ -74,7 +79,12 @@ Deno.test("PUT /council/metadata - updates metadata", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",
-    body: { councilId: "default", name: "Updated Council", description: "New description", contactEmail: "admin@example.com" },
+    body: {
+      councilId: "default",
+      name: "Updated Council",
+      description: "New description",
+      contactEmail: "admin@example.com",
+    },
     state: { ...adminState },
   });
 
@@ -149,7 +159,10 @@ Deno.test("PUT /council/metadata - sets councilPublicKey from session sub", asyn
   await ensureInitialized();
   await resetDb();
   const otherKeypair = Keypair.random();
-  await seedCouncilMetadata({ name: "Original", councilPublicKey: otherKeypair.publicKey() });
+  await seedCouncilMetadata({
+    name: "Original",
+    councilPublicKey: otherKeypair.publicKey(),
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "PUT",

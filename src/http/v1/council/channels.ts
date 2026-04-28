@@ -13,7 +13,19 @@ const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 const channelRepo = new CouncilChannelRepository(drizzleClient);
 const knownAssetRepo = new KnownAssetRepository(drizzleClient);
 
-function formatChannel(ch: { id: string; channelContractId: string; assetCode: string; assetContractId: string | null; label: string | null; totalDeposited: bigint | null; totalWithdrawn: bigint | null; utxoCount: bigint | null; lastSyncedAt: Date | null }) {
+function formatChannel(
+  ch: {
+    id: string;
+    channelContractId: string;
+    assetCode: string;
+    assetContractId: string | null;
+    label: string | null;
+    totalDeposited: bigint | null;
+    totalWithdrawn: bigint | null;
+    utxoCount: bigint | null;
+    lastSyncedAt: Date | null;
+  },
+) {
   return {
     id: ch.id,
     channelContractId: ch.channelContractId,
@@ -58,7 +70,13 @@ export const addChannelHandler = async (ctx: Context) => {
     if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
 
     const body = await ctx.request.body.json();
-    const { channelContractId, assetCode, assetContractId, issuerAddress, label } = body;
+    const {
+      channelContractId,
+      assetCode,
+      assetContractId,
+      issuerAddress,
+      label,
+    } = body;
 
     if (!channelContractId || typeof channelContractId !== "string") {
       ctx.response.status = Status.BadRequest;
@@ -80,11 +98,16 @@ export const addChannelHandler = async (ctx: Context) => {
 
     if (assetCode.length > 12 || !/^[a-zA-Z0-9]+$/.test(assetCode)) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "assetCode must be 1-12 alphanumeric characters" };
+      ctx.response.body = {
+        message: "assetCode must be 1-12 alphanumeric characters",
+      };
       return;
     }
 
-    if (assetContractId && typeof assetContractId === "string" && !StrKey.isValidContractId(assetContractId)) {
+    if (
+      assetContractId && typeof assetContractId === "string" &&
+      !StrKey.isValidContractId(assetContractId)
+    ) {
       ctx.response.status = Status.BadRequest;
       ctx.response.body = { message: "Invalid asset contract ID format" };
       return;
@@ -101,10 +124,15 @@ export const addChannelHandler = async (ctx: Context) => {
       return;
     }
 
-    const existing = await channelRepo.findByContractId(councilId, channelContractId);
+    const existing = await channelRepo.findByContractId(
+      councilId,
+      channelContractId,
+    );
     if (existing) {
       ctx.response.status = Status.Conflict;
-      ctx.response.body = { message: "Channel with this contract ID already exists" };
+      ctx.response.body = {
+        message: "Channel with this contract ID already exists",
+      };
       return;
     }
 
@@ -120,7 +148,10 @@ export const addChannelHandler = async (ctx: Context) => {
     });
 
     try {
-      await knownAssetRepo.upsert(assetCode.trim(), (issuerAddress || "").trim());
+      await knownAssetRepo.upsert(
+        assetCode.trim(),
+        (issuerAddress || "").trim(),
+      );
     } catch { /* best effort */ }
 
     LOG.info("Channel added", { councilId, channelContractId, assetCode });
@@ -164,7 +195,9 @@ export const getChannelHandler = async (ctx: Context) => {
       return;
     }
 
-    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) return;
+    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) {
+      return;
+    }
 
     try {
       const onChainState = await queryChannelState(channel.channelContractId);
@@ -224,11 +257,16 @@ export const removeChannelHandler = async (ctx: Context) => {
       return;
     }
 
-    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) return;
+    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) {
+      return;
+    }
 
     await channelRepo.update(id, { deletedAt: new Date() });
 
-    LOG.info("Channel disabled", { id, channelContractId: channel.channelContractId });
+    LOG.info("Channel disabled", {
+      id,
+      channelContractId: channel.channelContractId,
+    });
 
     ctx.response.status = Status.OK;
     ctx.response.body = { message: "Channel disabled" };
@@ -259,11 +297,16 @@ export const enableChannelHandler = async (ctx: Context) => {
       return;
     }
 
-    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) return;
+    if (!await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)) {
+      return;
+    }
 
     await channelRepo.restore(id);
 
-    LOG.info("Channel re-enabled", { id, channelContractId: channel.channelContractId });
+    LOG.info("Channel re-enabled", {
+      id,
+      channelContractId: channel.channelContractId,
+    });
 
     ctx.response.status = Status.OK;
     ctx.response.body = {

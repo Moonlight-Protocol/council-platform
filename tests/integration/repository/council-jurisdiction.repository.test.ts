@@ -7,8 +7,8 @@ import { assertEquals, assertExists } from "@std/assert";
 import { CouncilJurisdictionRepository } from "@/persistence/drizzle/repository/council-jurisdiction.repository.ts";
 import {
   drizzleClient,
-  resetDb,
   ensureInitialized,
+  resetDb,
   seedJurisdiction,
 } from "../../test_helpers.ts";
 
@@ -35,7 +35,7 @@ Deno.test("findByCountryCode - returns the correct record", async () => {
 
   await seedJurisdiction({ countryCode: "GB", label: "United Kingdom" });
 
-  const found = await repo.findByCountryCode("default","GB");
+  const found = await repo.findByCountryCode("default", "GB");
   assertExists(found);
   assertEquals(found.countryCode, "GB");
 });
@@ -44,7 +44,7 @@ Deno.test("findByCountryCode - returns undefined for non-existent", async () => 
   await ensureInitialized();
   await resetDb();
 
-  const found = await repo.findByCountryCode("default","ZZ");
+  const found = await repo.findByCountryCode("default", "ZZ");
   assertEquals(found, undefined);
 });
 
@@ -78,6 +78,6 @@ Deno.test("delete - soft-deletes and record excluded from listAll", async () => 
   assertEquals(all[0].countryCode, "GB");
 
   // Also excluded from findByCountryCode
-  const found = await repo.findByCountryCode("default","US");
+  const found = await repo.findByCountryCode("default", "US");
   assertEquals(found, undefined);
 });

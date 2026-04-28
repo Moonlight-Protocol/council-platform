@@ -8,7 +8,10 @@ export const councilJurisdiction = pgTable("council_jurisdictions", {
   label: text("label"), // human-readable, e.g. "Uruguay"
   ...createBaseColumns(),
 }, (table) => [
-  uniqueIndex("idx_jurisdiction_council_country").on(table.councilId, table.countryCode),
+  uniqueIndex("idx_jurisdiction_council_country").on(
+    table.councilId,
+    table.countryCode,
+  ),
 ]);
 
 export type CouncilJurisdiction = typeof councilJurisdiction.$inferSelect;

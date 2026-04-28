@@ -12,6 +12,7 @@ export interface ChannelOnChainState {
   ledgerSequence: number;
 }
 
+// deno-lint-ignore require-await -- mock satisfies async queryChannelState contract
 export async function queryChannelState(
   _channelContractId: string,
 ): Promise<ChannelOnChainState> {

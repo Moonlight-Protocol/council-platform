@@ -6,7 +6,7 @@
  *
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/service/key-derivation.service.test.ts
  */
-import { assertEquals, assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { p256 } from "@noble/curves/p256";
 import {
   deriveP256Keypair,
@@ -114,7 +114,11 @@ Deno.test("signWithDerivedKey - produces a DER-encoded signature", async () => {
   // DER signatures start with 0x30 (SEQUENCE tag)
   assertEquals(sig[0], 0x30, "DER signature must start with SEQUENCE tag 0x30");
   // Second byte is the length of the remaining data
-  assertEquals(sig.length, sig[1] + 2, "DER length must match actual signature length");
+  assertEquals(
+    sig.length,
+    sig[1] + 2,
+    "DER length must match actual signature length",
+  );
 });
 
 Deno.test("signWithDerivedKey - signature is verifiable with the derived public key", async () => {
@@ -133,10 +137,19 @@ Deno.test("signWithDerivedKey - signature is verifiable with the derived public 
 Deno.test("deriveP256Keypair - returns 32-byte private key and 65-byte public key", async () => {
   await seedDefaultCouncil();
 
-  const { privateKey, publicKey } = await deriveP256Keypair(COUNCIL_ID, CHANNEL, USER, 0);
+  const { privateKey, publicKey } = await deriveP256Keypair(
+    COUNCIL_ID,
+    CHANNEL,
+    USER,
+    0,
+  );
 
   assertEquals(privateKey.length, 32, "Private key must be 32 bytes");
-  assertEquals(publicKey.length, 65, "Public key must be 65 bytes (uncompressed)");
+  assertEquals(
+    publicKey.length,
+    65,
+    "Public key must be 65 bytes (uncompressed)",
+  );
   assertEquals(publicKey[0], 0x04, "Public key must start with 0x04 prefix");
 });
 

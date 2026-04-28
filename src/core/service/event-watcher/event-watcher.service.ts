@@ -1,5 +1,5 @@
 import type { Server } from "stellar-sdk/rpc";
-import { xdr, Address } from "stellar-sdk";
+import { Address, type xdr } from "stellar-sdk";
 import { withSpan } from "@/core/tracing.ts";
 import type {
   ChannelAuthEvent,
@@ -23,7 +23,7 @@ function decodeTopicSymbol(val: xdr.ScVal): string | null {
   return null;
 }
 
-export async function fetchChannelAuthEvents(
+export function fetchChannelAuthEvents(
   rpcServer: Server,
   contractId: string,
   startLedger: number,

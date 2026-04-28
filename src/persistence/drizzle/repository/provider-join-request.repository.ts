@@ -1,10 +1,10 @@
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
-  providerJoinRequest,
-  type ProviderJoinRequest,
-  type NewProviderJoinRequest,
   JoinRequestStatus,
+  type NewProviderJoinRequest,
+  type ProviderJoinRequest,
+  providerJoinRequest,
 } from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
 import type { DrizzleClient } from "@/persistence/drizzle/config.ts";
 
@@ -17,7 +17,10 @@ export class ProviderJoinRequestRepository extends BaseRepository<
     super(db, providerJoinRequest);
   }
 
-  async findPendingByPublicKey(councilId: string, publicKey: string): Promise<ProviderJoinRequest | undefined> {
+  async findPendingByPublicKey(
+    councilId: string,
+    publicKey: string,
+  ): Promise<ProviderJoinRequest | undefined> {
     const [result] = await this.db
       .select()
       .from(providerJoinRequest)
@@ -33,7 +36,10 @@ export class ProviderJoinRequestRepository extends BaseRepository<
     return result;
   }
 
-  async findLatestByPublicKey(councilId: string, publicKey: string): Promise<ProviderJoinRequest | undefined> {
+  async findLatestByPublicKey(
+    councilId: string,
+    publicKey: string,
+  ): Promise<ProviderJoinRequest | undefined> {
     const [result] = await this.db
       .select()
       .from(providerJoinRequest)
@@ -49,7 +55,10 @@ export class ProviderJoinRequestRepository extends BaseRepository<
     return result;
   }
 
-  async listPending(councilId: string, limit = 100): Promise<ProviderJoinRequest[]> {
+  async listPending(
+    councilId: string,
+    limit = 100,
+  ): Promise<ProviderJoinRequest[]> {
     return await this.db
       .select()
       .from(providerJoinRequest)
@@ -64,7 +73,10 @@ export class ProviderJoinRequestRepository extends BaseRepository<
       .limit(limit);
   }
 
-  async listAll(councilId: string, limit = 100): Promise<ProviderJoinRequest[]> {
+  async listAll(
+    councilId: string,
+    limit = 100,
+  ): Promise<ProviderJoinRequest[]> {
     return await this.db
       .select()
       .from(providerJoinRequest)

@@ -17,10 +17,11 @@ export const SERVICE_AUTH_SECRET_AS_CRYPTO_KEY = await crypto.subtle.importKey(
   ["verify"],
 );
 
-export const SERVICE_AUTH_SECRET_AS_CRYPTO_KEY_SIGNABLE = await crypto.subtle.importKey(
-  "raw",
-  keyData,
-  { name: "HMAC", hash: "SHA-256" },
-  false,
-  ["verify", "sign"],
-);
+export const SERVICE_AUTH_SECRET_AS_CRYPTO_KEY_SIGNABLE = await crypto.subtle
+  .importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify", "sign"],
+  );

@@ -9,8 +9,16 @@ const apiRouter = new Router();
 
 apiRouter.use("/api/v1", healthRouter.routes(), healthRouter.allowedMethods());
 apiRouter.use("/api/v1", adminRouter.routes(), adminRouter.allowedMethods());
-apiRouter.use("/api/v1", councilRouter.routes(), councilRouter.allowedMethods());
+apiRouter.use(
+  "/api/v1",
+  councilRouter.routes(),
+  councilRouter.allowedMethods(),
+);
 apiRouter.use("/api/v1", publicRouter.routes(), publicRouter.allowedMethods());
-apiRouter.use("/api/v1", waitlistRouter.routes(), waitlistRouter.allowedMethods());
+apiRouter.use(
+  "/api/v1",
+  waitlistRouter.routes(),
+  waitlistRouter.allowedMethods(),
+);
 
 export default apiRouter;

@@ -1,17 +1,21 @@
 import { type Context, Status } from "@oak/oak";
-import { eq, and, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
-import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
-import { providerJoinRequest, JoinRequestStatus } from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
-import { councilProvider, ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
+import {
+  JoinRequestStatus,
+  providerJoinRequest,
+} from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
+import {
+  councilProvider,
+  ProviderStatus,
+} from "@/persistence/drizzle/entity/council-provider.entity.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { LOG } from "@/config/logger.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
-const providerRepo = new CouncilProviderRepository(drizzleClient);
 
 function formatJoinRequest(r: {
   id: string;
@@ -60,7 +64,10 @@ export const listJoinRequestsHandler = async (ctx: Context) => {
 
     // Verify ownership
     const ownerPublicKey = (ctx.state.session as { sub: string }).sub;
-    const council = await metadataRepo.getByIdAndOwner(councilId, ownerPublicKey);
+    const council = await metadataRepo.getByIdAndOwner(
+      councilId,
+      ownerPublicKey,
+    );
     if (!council) {
       ctx.response.status = Status.NotFound;
       ctx.response.body = { message: "Council not found" };
@@ -118,7 +125,10 @@ export const approveJoinRequestHandler = async (ctx: Context) => {
       ctx.response.body = { message: "Join request not found" };
       return;
     }
-    const council = await metadataRepo.getByIdAndOwner(requestRow.councilId, adminPublicKey);
+    const council = await metadataRepo.getByIdAndOwner(
+      requestRow.councilId,
+      adminPublicKey,
+    );
     if (!council) {
       ctx.response.status = Status.NotFound;
       ctx.response.body = { message: "Join request not found" };
@@ -180,7 +190,12 @@ export const approveJoinRequestHandler = async (ctx: Context) => {
         });
       }
 
-      return { ...row, status: JoinRequestStatus.APPROVED, reviewedAt: new Date(), reviewedBy: adminPublicKey };
+      return {
+        ...row,
+        status: JoinRequestStatus.APPROVED,
+        reviewedAt: new Date(),
+        reviewedBy: adminPublicKey,
+      };
     });
 
     if (!request) {
@@ -240,7 +255,10 @@ export const rejectJoinRequestHandler = async (ctx: Context) => {
       ctx.response.body = { message: "Join request not found" };
       return;
     }
-    const rejectCouncil = await metadataRepo.getByIdAndOwner(rejectRequestRow.councilId, adminPublicKey);
+    const rejectCouncil = await metadataRepo.getByIdAndOwner(
+      rejectRequestRow.councilId,
+      adminPublicKey,
+    );
     if (!rejectCouncil) {
       ctx.response.status = Status.NotFound;
       ctx.response.body = { message: "Join request not found" };
@@ -273,7 +291,12 @@ export const rejectJoinRequestHandler = async (ctx: Context) => {
         })
         .where(eq(providerJoinRequest.id, id));
 
-      return { ...row, status: JoinRequestStatus.REJECTED, reviewedAt: new Date(), reviewedBy: adminPublicKey };
+      return {
+        ...row,
+        status: JoinRequestStatus.REJECTED,
+        reviewedAt: new Date(),
+        reviewedBy: adminPublicKey,
+      };
     });
 
     if (!request) {

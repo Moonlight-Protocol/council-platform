@@ -30,7 +30,10 @@ export const errorResponseSchema = z.object({
   details: z.string().optional(),
 });
 
-export const responseSchema = z.union([defaultSuccessResponseSchema, errorResponseSchema]);
+export const responseSchema = z.union([
+  defaultSuccessResponseSchema,
+  errorResponseSchema,
+]);
 
 export type BaseSuccessResponse = z.infer<typeof baseSuccessResponseSchema>;
 export type ApiResponse = z.infer<typeof responseSchema>;

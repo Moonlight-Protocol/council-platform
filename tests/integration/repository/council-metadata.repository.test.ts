@@ -8,18 +8,18 @@ import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/coun
 import { encryptSecret } from "@/core/crypto/encrypt-secret.ts";
 import { SERVICE_AUTH_SECRET } from "@/config/env.ts";
 import {
-  drizzleClient,
-  resetDb,
-  ensureInitialized,
-  seedCouncilMetadata,
-  seedChannel,
-  seedProvider,
-  seedJoinRequest,
-  getMetadata,
-  getAllChannels,
-  getAllProviders,
-  getAllJoinRequests,
   ADMIN_KEYPAIR,
+  drizzleClient,
+  ensureInitialized,
+  getAllChannels,
+  getAllJoinRequests,
+  getAllProviders,
+  getMetadata,
+  resetDb,
+  seedChannel,
+  seedCouncilMetadata,
+  seedJoinRequest,
+  seedProvider,
 } from "../../test_helpers.ts";
 
 const repo = new CouncilMetadataRepository(drizzleClient);

@@ -7,8 +7,8 @@ import { assertEquals } from "@std/assert";
 import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
 import {
   drizzleClient,
-  resetDb,
   ensureInitialized,
+  resetDb,
 } from "../../test_helpers.ts";
 
 const repo = new KnownAssetRepository(drizzleClient);

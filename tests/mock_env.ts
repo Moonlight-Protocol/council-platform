@@ -15,7 +15,9 @@
 import { Keypair } from "stellar-sdk";
 
 // Fixed test keypair — deterministic so signature outputs are reproducible.
-const councilKeypair = Keypair.fromSecret("SBPCP2AQ63VWALVCJTV63UYBFWDTQWCURW2PG74XWXGK4CFMQZIBRYK5");
+const councilKeypair = Keypair.fromSecret(
+  "SBPCP2AQ63VWALVCJTV63UYBFWDTQWCURW2PG74XWXGK4CFMQZIBRYK5",
+);
 
 export const DATABASE_URL = "mock://not-used-pglite-replaces-this";
 export const PORT = "0"; // random port
@@ -38,11 +40,17 @@ export const NETWORK_CONFIG = {
 
 // Mock RPC server that returns dummy data
 export const NETWORK_RPC_SERVER = {
+  // deno-lint-ignore require-await -- mock satisfies stellar-sdk RPC async contract
   getEvents: async () => ({ events: [], latestLedger: 100 }),
+  // deno-lint-ignore require-await -- mock satisfies stellar-sdk RPC async contract
   getLatestLedger: async () => ({ sequence: 100 }),
+  // deno-lint-ignore require-await -- mock satisfies stellar-sdk RPC async contract
   getAccount: async () => ({}),
+  // deno-lint-ignore require-await -- mock satisfies stellar-sdk RPC async contract
   simulateTransaction: async () => ({}),
+  // deno-lint-ignore require-await -- mock satisfies stellar-sdk RPC async contract
   sendTransaction: async () => ({}),
+  // deno-lint-ignore require-await -- mock satisfies stellar-sdk RPC async contract
   getTransaction: async () => ({}),
 };
 

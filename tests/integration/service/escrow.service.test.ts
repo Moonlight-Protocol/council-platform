@@ -5,16 +5,16 @@
  */
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import {
+  CustodialUserStatus,
   ensureInitialized,
+  EscrowStatus,
+  getAllEscrows,
   resetDb,
   seedCouncilWithRoot,
   seedCustodialUser,
   seedEscrow,
   testAddress,
   testContractId,
-  getAllEscrows,
-  EscrowStatus,
-  CustodialUserStatus,
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 import {
@@ -93,9 +93,21 @@ Deno.test("getEscrowSummary - returns correct count and total for held escrows",
 
   const recipient = testAddress();
 
-  await seedEscrow({ recipientAddress: recipient, amount: 5_000_000n, status: EscrowStatus.HELD });
-  await seedEscrow({ recipientAddress: recipient, amount: 3_000_000n, status: EscrowStatus.HELD });
-  await seedEscrow({ recipientAddress: recipient, amount: 1_000_000n, status: EscrowStatus.RELEASED });
+  await seedEscrow({
+    recipientAddress: recipient,
+    amount: 5_000_000n,
+    status: EscrowStatus.HELD,
+  });
+  await seedEscrow({
+    recipientAddress: recipient,
+    amount: 3_000_000n,
+    status: EscrowStatus.HELD,
+  });
+  await seedEscrow({
+    recipientAddress: recipient,
+    amount: 1_000_000n,
+    status: EscrowStatus.RELEASED,
+  });
 
   const summary = await getEscrowSummary(recipient);
   assertEquals(summary.pendingCount, 2);
@@ -118,7 +130,12 @@ Deno.test("getEscrowSummary - returns 0 for address with no escrows", async () =
 Deno.test("getRecipientUtxos - returns registered=false for unregistered user", async () => {
   await setupCouncil();
 
-  const result = await getRecipientUtxos(COUNCIL_ID, testAddress(), testContractId(), 1);
+  const result = await getRecipientUtxos(
+    COUNCIL_ID,
+    testAddress(),
+    testContractId(),
+    1,
+  );
   assertEquals(result.registered, false);
   assertEquals(result.publicKeys.length, 0);
 });

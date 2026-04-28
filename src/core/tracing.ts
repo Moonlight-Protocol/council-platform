@@ -1,8 +1,8 @@
-import { trace, SpanStatusCode, type Span } from "@opentelemetry/api";
+import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 
 const tracer = trace.getTracer("council-platform");
 
-export async function withSpan<T>(
+export function withSpan<T>(
   name: string,
   fn: (span: Span) => Promise<T> | T,
   attributes?: Record<string, string | number | boolean>,
@@ -23,7 +23,9 @@ export async function withSpan<T>(
         code: SpanStatusCode.ERROR,
         message: error instanceof Error ? error.message : String(error),
       });
-      span.recordException(error instanceof Error ? error : new Error(String(error)));
+      span.recordException(
+        error instanceof Error ? error : new Error(String(error)),
+      );
       span.addEvent("exit_with_error", { "function.name": name });
       throw error;
     } finally {
@@ -32,5 +34,5 @@ export async function withSpan<T>(
   });
 }
 
-export { tracer, SpanStatusCode };
+export { SpanStatusCode, tracer };
 export type { Span };

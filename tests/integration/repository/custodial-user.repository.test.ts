@@ -6,12 +6,11 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { CustodialUserRepository } from "@/persistence/drizzle/repository/custodial-user.repository.ts";
 import {
-  drizzleClient,
-  resetDb,
-  ensureInitialized,
-  seedCustodialUser,
-  testContractId,
   CustodialUserStatus,
+  drizzleClient,
+  ensureInitialized,
+  resetDb,
+  seedCustodialUser,
 } from "../../test_helpers.ts";
 
 const repo = new CustodialUserRepository(drizzleClient);

@@ -1,8 +1,8 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
-  councilProvider,
   type CouncilProvider,
+  councilProvider,
   type NewCouncilProvider,
   ProviderStatus,
 } from "@/persistence/drizzle/entity/council-provider.entity.ts";
@@ -17,7 +17,10 @@ export class CouncilProviderRepository extends BaseRepository<
     super(db, councilProvider);
   }
 
-  async findByPublicKey(councilId: string, publicKey: string): Promise<CouncilProvider | undefined> {
+  async findByPublicKey(
+    councilId: string,
+    publicKey: string,
+  ): Promise<CouncilProvider | undefined> {
     const [result] = await this.db
       .select()
       .from(councilProvider)

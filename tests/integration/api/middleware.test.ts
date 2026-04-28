@@ -25,6 +25,7 @@ Deno.test("CORS - allows origins from ALLOWED_ORIGINS env var", async () => {
     headers: { "Origin": "http://localhost:3030" },
   });
 
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
   const next = async () => {
     ctx.response.status = 200;
     ctx.response.body = "ok";
@@ -45,6 +46,7 @@ Deno.test("CORS - allows dev origins in development mode", async () => {
     headers: { "Origin": "http://localhost:3000" },
   });
 
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
   const next = async () => {
     ctx.response.status = 200;
     ctx.response.body = "ok";
@@ -53,7 +55,10 @@ Deno.test("CORS - allows dev origins in development mode", async () => {
 
   const res = getResponse();
   assertEquals(res.status, 200);
-  assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:3000");
+  assertEquals(
+    res.headers.get("Access-Control-Allow-Origin"),
+    "http://localhost:3000",
+  );
 });
 
 Deno.test("CORS - blocks unknown origins", async () => {
@@ -62,6 +67,7 @@ Deno.test("CORS - blocks unknown origins", async () => {
     headers: { "Origin": "https://evil.com" },
   });
 
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
   const next = async () => {
     ctx.response.status = 200;
     ctx.response.body = "ok";
@@ -79,6 +85,7 @@ Deno.test("CORS - OPTIONS preflight returns 204 for allowed origin", async () =>
     headers: { "Origin": "http://localhost:3000" },
   });
 
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
   const next = async () => {
     ctx.response.status = 200;
     ctx.response.body = "should not reach here";
@@ -87,8 +94,14 @@ Deno.test("CORS - OPTIONS preflight returns 204 for allowed origin", async () =>
 
   const res = getResponse();
   assertEquals(res.status, 204);
-  assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:3000");
-  assertEquals(res.headers.get("Access-Control-Allow-Methods"), "GET, POST, PUT, DELETE, OPTIONS");
+  assertEquals(
+    res.headers.get("Access-Control-Allow-Origin"),
+    "http://localhost:3000",
+  );
+  assertEquals(
+    res.headers.get("Access-Control-Allow-Methods"),
+    "GET, POST, PUT, DELETE, OPTIONS",
+  );
 });
 
 Deno.test("CORS - allows localhost:3030 in development mode", async () => {
@@ -97,6 +110,7 @@ Deno.test("CORS - allows localhost:3030 in development mode", async () => {
     headers: { "Origin": "http://localhost:3030" },
   });
 
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
   const next = async () => {
     ctx.response.status = 200;
     ctx.response.body = "ok";
@@ -105,7 +119,10 @@ Deno.test("CORS - allows localhost:3030 in development mode", async () => {
 
   const res = getResponse();
   assertEquals(res.status, 200);
-  assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:3030");
+  assertEquals(
+    res.headers.get("Access-Control-Allow-Origin"),
+    "http://localhost:3030",
+  );
 });
 
 Deno.test("CORS - allows arbitrary localhost port in development mode", async () => {
@@ -114,6 +131,7 @@ Deno.test("CORS - allows arbitrary localhost port in development mode", async ()
     headers: { "Origin": "http://localhost:9999" },
   });
 
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
   const next = async () => {
     ctx.response.status = 200;
     ctx.response.body = "ok";
@@ -122,7 +140,10 @@ Deno.test("CORS - allows arbitrary localhost port in development mode", async ()
 
   const res = getResponse();
   assertEquals(res.status, 200);
-  assertEquals(res.headers.get("Access-Control-Allow-Origin"), "http://localhost:9999");
+  assertEquals(
+    res.headers.get("Access-Control-Allow-Origin"),
+    "http://localhost:9999",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -132,7 +153,10 @@ Deno.test("CORS - allows arbitrary localhost port in development mode", async ()
 Deno.test("jwtMiddleware - rejects missing Authorization header", async () => {
   const { ctx, getResponse } = createMockContext({ method: "GET" });
   let nextCalled = false;
-  await jwtMiddleware(ctx, async () => { nextCalled = true; });
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
+  await jwtMiddleware(ctx, async () => {
+    nextCalled = true;
+  });
 
   assertEquals(nextCalled, false);
   const res = getResponse();
@@ -146,7 +170,10 @@ Deno.test("jwtMiddleware - rejects invalid Authorization format", async () => {
     headers: { "Authorization": "Basic abc123" },
   });
   let nextCalled = false;
-  await jwtMiddleware(ctx, async () => { nextCalled = true; });
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
+  await jwtMiddleware(ctx, async () => {
+    nextCalled = true;
+  });
 
   assertEquals(nextCalled, false);
   const res = getResponse();
@@ -160,7 +187,10 @@ Deno.test("jwtMiddleware - rejects invalid JWT token", async () => {
     headers: { "Authorization": "Bearer not.a.valid.jwt" },
   });
   let nextCalled = false;
-  await jwtMiddleware(ctx, async () => { nextCalled = true; });
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
+  await jwtMiddleware(ctx, async () => {
+    nextCalled = true;
+  });
 
   assertEquals(nextCalled, false);
   const res = getResponse();
@@ -175,7 +205,10 @@ Deno.test("jwtMiddleware - accepts valid wallet JWT and sets session", async () 
     headers: { "Authorization": `Bearer ${token}` },
   });
   let nextCalled = false;
-  await jwtMiddleware(ctx, async () => { nextCalled = true; });
+  // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
+  await jwtMiddleware(ctx, async () => {
+    nextCalled = true;
+  });
 
   assertEquals(nextCalled, true);
   assertEquals(ctx.state.session.sub, "GPUBLICKEYTEST1234");

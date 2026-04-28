@@ -7,20 +7,32 @@
 import { Keypair, StrKey } from "stellar-sdk";
 import { Buffer } from "buffer";
 import {
-  drizzleClient,
-  resetDb,
   closeDb,
+  drizzleClient,
   ensureInitialized,
+  resetDb,
 } from "./pglite_db.ts";
 import { encryptSecret } from "@/core/crypto/encrypt-secret.ts";
 import { SERVICE_AUTH_SECRET } from "@/config/env.ts";
 import { councilMetadata } from "@/persistence/drizzle/entity/council-metadata.entity.ts";
 import { councilChannel } from "@/persistence/drizzle/entity/council-channel.entity.ts";
 import { councilJurisdiction } from "@/persistence/drizzle/entity/council-jurisdiction.entity.ts";
-import { councilProvider, ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
-import { custodialUser, CustodialUserStatus } from "@/persistence/drizzle/entity/custodial-user.entity.ts";
-import { councilEscrow, EscrowStatus } from "@/persistence/drizzle/entity/council-escrow.entity.ts";
-import { providerJoinRequest, JoinRequestStatus } from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
+import {
+  councilProvider,
+  ProviderStatus,
+} from "@/persistence/drizzle/entity/council-provider.entity.ts";
+import {
+  custodialUser,
+  CustodialUserStatus,
+} from "@/persistence/drizzle/entity/custodial-user.entity.ts";
+import {
+  councilEscrow,
+  EscrowStatus,
+} from "@/persistence/drizzle/entity/council-escrow.entity.ts";
+import {
+  JoinRequestStatus,
+  providerJoinRequest,
+} from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
 
 // ── Pre-generated Stellar keypairs ──────────────────────────────────────
 
@@ -45,14 +57,16 @@ export function randomContractId(): string {
 
 // ── Seed helpers ────────────────────────────────────────────────────────
 
-export async function seedCouncilMetadata(overrides?: Partial<{
-  id: string;
-  name: string;
-  description: string;
-  contactEmail: string;
-  councilPublicKey: string;
-  encryptedDerivationRoot: string;
-}>) {
+export async function seedCouncilMetadata(
+  overrides?: Partial<{
+    id: string;
+    name: string;
+    description: string;
+    contactEmail: string;
+    councilPublicKey: string;
+    encryptedDerivationRoot: string;
+  }>,
+) {
   const data = {
     id: overrides?.id ?? "default",
     name: overrides?.name ?? "Test Council",
@@ -61,14 +75,16 @@ export async function seedCouncilMetadata(overrides?: Partial<{
     councilPublicKey: overrides?.councilPublicKey ?? ADMIN_KEYPAIR.publicKey(),
     // Test fixture: a fixed pre-encrypted root produced from test-secret + zeroes.
     // Real councils get a random root from putMetadataHandler.
-    encryptedDerivationRoot: overrides?.encryptedDerivationRoot ?? "test-fixture-root",
+    encryptedDerivationRoot: overrides?.encryptedDerivationRoot ??
+      "test-fixture-root",
     createdAt: new Date(),
     updatedAt: new Date(),
     createdBy: null,
     updatedBy: null,
     deletedAt: null,
   };
-  const [result] = await drizzleClient.insert(councilMetadata).values(data).returning();
+  const [result] = await drizzleClient.insert(councilMetadata).values(data)
+    .returning();
   return result;
 }
 
@@ -86,18 +102,23 @@ export async function seedCouncilMetadata(overrides?: Partial<{
  * Returns both the seeded council row and the raw root bytes, so tests
  * can use the raw root for assertions if needed.
  */
-export async function seedCouncilWithRoot(overrides?: Partial<{
-  id: string;
-  name: string;
-  description: string;
-  contactEmail: string;
-  councilPublicKey: string;
-}>): Promise<{
+export async function seedCouncilWithRoot(
+  overrides?: Partial<{
+    id: string;
+    name: string;
+    description: string;
+    contactEmail: string;
+    councilPublicKey: string;
+  }>,
+): Promise<{
   council: Awaited<ReturnType<typeof seedCouncilMetadata>>;
   root: Uint8Array;
 }> {
   const root = crypto.getRandomValues(new Uint8Array(32));
-  const encryptedDerivationRoot = await encryptSecret(root, SERVICE_AUTH_SECRET);
+  const encryptedDerivationRoot = await encryptSecret(
+    root,
+    SERVICE_AUTH_SECRET,
+  );
   const council = await seedCouncilMetadata({
     ...overrides,
     encryptedDerivationRoot,
@@ -105,12 +126,14 @@ export async function seedCouncilWithRoot(overrides?: Partial<{
   return { council, root };
 }
 
-export async function seedChannel(overrides?: Partial<{
-  councilId: string;
-  channelContractId: string;
-  assetCode: string;
-  label: string;
-}>) {
+export async function seedChannel(
+  overrides?: Partial<{
+    councilId: string;
+    channelContractId: string;
+    assetCode: string;
+    label: string;
+  }>,
+) {
   const data = {
     id: crypto.randomUUID(),
     councilId: overrides?.councilId ?? "default",
@@ -123,15 +146,18 @@ export async function seedChannel(overrides?: Partial<{
     updatedBy: null,
     deletedAt: null,
   };
-  const [result] = await drizzleClient.insert(councilChannel).values(data).returning();
+  const [result] = await drizzleClient.insert(councilChannel).values(data)
+    .returning();
   return result;
 }
 
-export async function seedJurisdiction(overrides?: Partial<{
-  councilId: string;
-  countryCode: string;
-  label: string;
-}>) {
+export async function seedJurisdiction(
+  overrides?: Partial<{
+    councilId: string;
+    countryCode: string;
+    label: string;
+  }>,
+) {
   const data = {
     id: crypto.randomUUID(),
     councilId: overrides?.councilId ?? "default",
@@ -143,17 +169,20 @@ export async function seedJurisdiction(overrides?: Partial<{
     updatedBy: null,
     deletedAt: null,
   };
-  const [result] = await drizzleClient.insert(councilJurisdiction).values(data).returning();
+  const [result] = await drizzleClient.insert(councilJurisdiction).values(data)
+    .returning();
   return result;
 }
 
-export async function seedProvider(overrides?: Partial<{
-  councilId: string;
-  publicKey: string;
-  status: ProviderStatus;
-  label: string;
-  contactEmail: string;
-}>) {
+export async function seedProvider(
+  overrides?: Partial<{
+    councilId: string;
+    publicKey: string;
+    status: ProviderStatus;
+    label: string;
+    contactEmail: string;
+  }>,
+) {
   const data = {
     id: crypto.randomUUID(),
     councilId: overrides?.councilId ?? "default",
@@ -167,22 +196,26 @@ export async function seedProvider(overrides?: Partial<{
     updatedBy: null,
     deletedAt: null,
   };
-  const [result] = await drizzleClient.insert(councilProvider).values(data).returning();
+  const [result] = await drizzleClient.insert(councilProvider).values(data)
+    .returning();
   return result;
 }
 
-export async function seedCustodialUser(overrides?: Partial<{
-  councilId: string;
-  externalId: string;
-  channelContractId: string;
-  p256PublicKeyHex: string;
-  status: CustodialUserStatus;
-  registeredByProvider: string;
-}>) {
+export async function seedCustodialUser(
+  overrides?: Partial<{
+    councilId: string;
+    externalId: string;
+    channelContractId: string;
+    p256PublicKeyHex: string;
+    status: CustodialUserStatus;
+    registeredByProvider: string;
+  }>,
+) {
   const data = {
     id: crypto.randomUUID(),
     councilId: overrides?.councilId ?? "default",
-    externalId: overrides?.externalId ?? `user-${crypto.randomUUID().slice(0, 8)}`,
+    externalId: overrides?.externalId ??
+      `user-${crypto.randomUUID().slice(0, 8)}`,
     channelContractId: overrides?.channelContractId ?? testContractId(),
     p256PublicKeyHex: overrides?.p256PublicKeyHex ?? "04" + "a".repeat(128),
     status: overrides?.status ?? CustodialUserStatus.ACTIVE,
@@ -193,20 +226,23 @@ export async function seedCustodialUser(overrides?: Partial<{
     updatedBy: null,
     deletedAt: null,
   };
-  const [result] = await drizzleClient.insert(custodialUser).values(data).returning();
+  const [result] = await drizzleClient.insert(custodialUser).values(data)
+    .returning();
   return result;
 }
 
-export async function seedEscrow(overrides?: Partial<{
-  councilId: string;
-  senderAddress: string;
-  recipientAddress: string;
-  amount: bigint;
-  assetCode: string;
-  channelContractId: string;
-  status: EscrowStatus;
-  submittedByProvider: string;
-}>) {
+export async function seedEscrow(
+  overrides?: Partial<{
+    councilId: string;
+    senderAddress: string;
+    recipientAddress: string;
+    amount: bigint;
+    assetCode: string;
+    channelContractId: string;
+    status: EscrowStatus;
+    submittedByProvider: string;
+  }>,
+) {
   const data = {
     id: crypto.randomUUID(),
     councilId: overrides?.councilId ?? "default",
@@ -216,24 +252,28 @@ export async function seedEscrow(overrides?: Partial<{
     assetCode: overrides?.assetCode ?? "XLM",
     channelContractId: overrides?.channelContractId ?? testContractId(),
     status: overrides?.status ?? EscrowStatus.HELD,
-    submittedByProvider: overrides?.submittedByProvider ?? Keypair.random().publicKey(),
+    submittedByProvider: overrides?.submittedByProvider ??
+      Keypair.random().publicKey(),
     createdAt: new Date(),
     updatedAt: new Date(),
     createdBy: null,
     updatedBy: null,
     deletedAt: null,
   };
-  const [result] = await drizzleClient.insert(councilEscrow).values(data).returning();
+  const [result] = await drizzleClient.insert(councilEscrow).values(data)
+    .returning();
   return result;
 }
 
-export async function seedJoinRequest(overrides?: Partial<{
-  councilId: string;
-  publicKey: string;
-  label: string;
-  contactEmail: string;
-  status: JoinRequestStatus;
-}>) {
+export async function seedJoinRequest(
+  overrides?: Partial<{
+    councilId: string;
+    publicKey: string;
+    label: string;
+    contactEmail: string;
+    status: JoinRequestStatus;
+  }>,
+) {
   const data = {
     id: crypto.randomUUID(),
     councilId: overrides?.councilId ?? "default",
@@ -247,7 +287,8 @@ export async function seedJoinRequest(overrides?: Partial<{
     updatedBy: null,
     deletedAt: null,
   };
-  const [result] = await drizzleClient.insert(providerJoinRequest).values(data).returning();
+  const [result] = await drizzleClient.insert(providerJoinRequest).values(data)
+    .returning();
   return result;
 }
 
@@ -276,7 +317,7 @@ export async function getAllJoinRequests() {
 
 // ── Re-exports ──────────────────────────────────────────────────────────
 
-export { drizzleClient, resetDb, closeDb, ensureInitialized };
+export { closeDb, drizzleClient, ensureInitialized, resetDb };
 export { ProviderStatus };
 export { CustodialUserStatus };
 export { EscrowStatus };

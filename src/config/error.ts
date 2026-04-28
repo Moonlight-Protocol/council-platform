@@ -10,7 +10,8 @@ export class INVALID_NETWORK extends PlatformError {
       source: "@config",
       code: CONFIG_ERROR_CODES.INVALID_NETWORK,
       message: "Invalid network configuration",
-      details: "The network configuration provided is invalid. Review the environment settings.",
+      details:
+        "The network configuration provided is invalid. Review the environment settings.",
     });
   }
 }

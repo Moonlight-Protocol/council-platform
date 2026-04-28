@@ -15,10 +15,18 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/provider-auth.test.ts
  */
 import { assertEquals, assertExists } from "@std/assert";
-import { ensureInitialized, resetDb, seedProvider, ProviderStatus } from "../../test_helpers.ts";
+import {
+  ensureInitialized,
+  ProviderStatus,
+  resetDb,
+  seedProvider,
+} from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
-import { createCouncilChallenge, verifyCouncilChallenge } from "@/core/service/auth/council-auth.ts";
+import {
+  createCouncilChallenge,
+  verifyCouncilChallenge,
+} from "@/core/service/auth/council-auth.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 
@@ -38,6 +46,7 @@ function signNonceRaw(keypair: Keypair, nonce: string): string {
 
 function authConfig() {
   return {
+    // deno-lint-ignore require-await -- mock satisfies generateToken async contract
     generateToken: async (subject: string, sessionId: string) =>
       `mock-provider-jwt-${subject.slice(0, 8)}-${sessionId.slice(0, 8)}`,
   };
@@ -132,7 +141,12 @@ Deno.test("provider auth - verify blocks unregistered provider before signature 
 
   // Even though the signature is valid, the handler never reaches verification.
   // Verify the signature IS valid (proving the block is authorization, not crypto).
-  const { token } = await verifyCouncilChallenge(nonce, signature, pk, authConfig());
+  const { token } = await verifyCouncilChallenge(
+    nonce,
+    signature,
+    pk,
+    authConfig(),
+  );
   assertExists(token);
 });
 
@@ -160,7 +174,12 @@ Deno.test("provider auth - verify blocks REMOVED provider before signature check
   assertEquals(provider.status, ProviderStatus.REMOVED);
 
   // Signature is valid — the block is purely an authorization check
-  const { token } = await verifyCouncilChallenge(nonce, signature, pk, authConfig());
+  const { token } = await verifyCouncilChallenge(
+    nonce,
+    signature,
+    pk,
+    authConfig(),
+  );
   assertExists(token);
 });
 
@@ -207,7 +226,12 @@ Deno.test("provider auth - verifyCouncilChallenge rejects mismatched publicKey",
   let threw = false;
   let errorMsg = "";
   try {
-    await verifyCouncilChallenge(nonce, signature, kp2.publicKey(), authConfig());
+    await verifyCouncilChallenge(
+      nonce,
+      signature,
+      kp2.publicKey(),
+      authConfig(),
+    );
   } catch (e) {
     threw = true;
     errorMsg = e instanceof Error ? e.message : String(e);

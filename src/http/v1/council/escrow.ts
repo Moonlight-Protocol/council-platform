@@ -1,9 +1,9 @@
 import { type Context, Status } from "@oak/oak";
 import { StrKey } from "@colibri/core";
 import {
-  getRecipientUtxos,
   createEscrow,
   getEscrowSummary,
+  getRecipientUtxos,
   releaseEscrowsForRecipient,
 } from "@/core/service/escrow/escrow.service.ts";
 import type { JwtSessionData } from "@/http/middleware/auth/index.ts";
@@ -33,10 +33,14 @@ export const getRecipientUtxosHandler = async (ctx: Context) => {
       return;
     }
 
-    const channelContractId = ctx.request.url.searchParams.get("channelContractId");
+    const channelContractId = ctx.request.url.searchParams.get(
+      "channelContractId",
+    );
     if (!channelContractId) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "channelContractId query param is required" };
+      ctx.response.body = {
+        message: "channelContractId query param is required",
+      };
       return;
     }
 
@@ -54,11 +58,18 @@ export const getRecipientUtxosHandler = async (ctx: Context) => {
       return;
     }
 
-    const result = await getRecipientUtxos(councilId, address, channelContractId, count);
+    const result = await getRecipientUtxos(
+      councilId,
+      address,
+      channelContractId,
+      count,
+    );
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
-      message: result.registered ? "Recipient has UTXO addresses" : "Recipient not registered",
+      message: result.registered
+        ? "Recipient has UTXO addresses"
+        : "Recipient not registered",
       data: result,
     };
   } catch (error) {
@@ -88,19 +99,32 @@ export const postEscrowHandler = async (ctx: Context) => {
     const session = ctx.state.session as JwtSessionData;
 
     const body = await ctx.request.body.json();
-    const { councilId, senderAddress, recipientAddress, amount, assetCode, channelContractId } = body;
+    const {
+      councilId,
+      senderAddress,
+      recipientAddress,
+      amount,
+      assetCode,
+      channelContractId,
+    } = body;
 
-    if (!councilId || !senderAddress || !recipientAddress || !amount || !assetCode || !channelContractId) {
+    if (
+      !councilId || !senderAddress || !recipientAddress || !amount ||
+      !assetCode || !channelContractId
+    ) {
       ctx.response.status = Status.BadRequest;
       ctx.response.body = {
-        message: "councilId, senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
+        message:
+          "councilId, senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
       };
       return;
     }
 
     if (typeof amount !== "string" || !AMOUNT_RE.test(amount)) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "amount must be a positive integer string (stroops)" };
+      ctx.response.body = {
+        message: "amount must be a positive integer string (stroops)",
+      };
       return;
     }
 
