@@ -34,7 +34,7 @@ export interface CouncilAuthConfig {
   generateToken: (subject: string, sessionId: string) => Promise<string>;
 }
 
-export async function verifyCouncilChallenge(
+export function verifyCouncilChallenge(
   nonce: string,
   signature: string,
   publicKey: string,
@@ -74,15 +74,22 @@ export async function verifyCouncilChallenge(
       sep43Header[1] = 0x00;
       sep43Header.writeUInt32BE(nonceBytes.length, 2);
       const sep43Payload = Buffer.concat([sep43Header, nonceBytes]);
-      const sep43Hash = Buffer.from(await crypto.subtle.digest("SHA-256", sep43Payload));
+      const sep43Hash = Buffer.from(
+        await crypto.subtle.digest("SHA-256", sep43Payload),
+      );
 
       if (keypair.verify(sep43Hash, sigBuffer)) {
         span.addEvent("signature_verified_sep43");
       } else {
         // SEP-53 format
         const sep53Prefix = "Stellar Signed Message:\n";
-        const sep53Payload = Buffer.concat([Buffer.from(sep53Prefix, "utf-8"), nonceBytes]);
-        const sep53Hash = Buffer.from(await crypto.subtle.digest("SHA-256", sep53Payload));
+        const sep53Payload = Buffer.concat([
+          Buffer.from(sep53Prefix, "utf-8"),
+          nonceBytes,
+        ]);
+        const sep53Hash = Buffer.from(
+          await crypto.subtle.digest("SHA-256", sep53Payload),
+        );
 
         if (keypair.verify(sep53Hash, sigBuffer)) {
           span.addEvent("signature_verified_sep53");
@@ -96,15 +103,21 @@ export async function verifyCouncilChallenge(
         }
       }
     } catch (e) {
-      throw e instanceof Error && e.message === "Invalid signature" ? e : new Error("Invalid signature");
+      throw e instanceof Error && e.message === "Invalid signature"
+        ? e
+        : new Error("Invalid signature");
     }
 
     // Signature verified — consume the nonce (one-time use)
     pendingChallenges.delete(nonce);
 
     span.addEvent("issuing_jwt");
-    const hashBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(nonce)));
-    const hashedSessionId = Array.from(hashBytes.slice(0, 16)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const hashBytes = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(nonce)),
+    );
+    const hashedSessionId = Array.from(hashBytes.slice(0, 16)).map((b) =>
+      b.toString(16).padStart(2, "0")
+    ).join("");
     const token = await config.generateToken(publicKey, hashedSessionId);
 
     LOG.info("Council auth successful", { publicKey });

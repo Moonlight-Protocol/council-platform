@@ -5,7 +5,10 @@ import { CustodialUserRepository } from "@/persistence/drizzle/repository/custod
 import { ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
 import { CustodialUserStatus } from "@/persistence/drizzle/entity/custodial-user.entity.ts";
 import { signWithDerivedKey } from "@/core/service/custody/key-derivation.service.ts";
-import { registerCustodialUser, getUserPublicKeys } from "@/core/service/custody/custody.service.ts";
+import {
+  getUserPublicKeys,
+  registerCustodialUser,
+} from "@/core/service/custody/custody.service.ts";
 import type { JwtSessionData } from "@/http/middleware/auth/index.ts";
 import { LOG } from "@/config/logger.ts";
 
@@ -37,10 +40,15 @@ function hexToBytes(hex: string): Uint8Array {
  * Authorization is membership-based: any wallet that is an active member of the council
  * can use these endpoints.
  */
-async function validateProviderSession(councilId: string, session: JwtSessionData): Promise<string | null> {
+async function validateProviderSession(
+  councilId: string,
+  session: JwtSessionData,
+): Promise<string | null> {
   const provider = await providerRepo.findByPublicKey(councilId, session.sub);
   if (!provider) return "Provider not registered with this council";
-  if (provider.status !== ProviderStatus.ACTIVE) return "Provider is not active";
+  if (provider.status !== ProviderStatus.ACTIVE) {
+    return "Provider is not active";
+  }
 
   return null;
 }
@@ -142,7 +150,9 @@ export const postGetKeysHandler = async (ctx: Context) => {
 
     if (!externalId || !channelContractId || !Array.isArray(indices)) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "externalId, channelContractId, and indices are required" };
+      ctx.response.body = {
+        message: "externalId, channelContractId, and indices are required",
+      };
       return;
     }
 
@@ -152,7 +162,12 @@ export const postGetKeysHandler = async (ctx: Context) => {
       return;
     }
 
-    const publicKeys = await getUserPublicKeys(councilId, externalId, channelContractId, indices);
+    const publicKeys = await getUserPublicKeys(
+      councilId,
+      externalId,
+      channelContractId,
+      indices,
+    );
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -217,7 +232,9 @@ export const postSignSpendHandler = async (ctx: Context) => {
 
     if (!Array.isArray(spends) || spends.length === 0) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "spends array is required and must not be empty" };
+      ctx.response.body = {
+        message: "spends array is required and must not be empty",
+      };
       return;
     }
 
@@ -234,18 +251,25 @@ export const postSignSpendHandler = async (ctx: Context) => {
 
       if (!externalId || typeof utxoIndex !== "number" || !message) {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Each spend requires externalId, utxoIndex, and message" };
+        ctx.response.body = {
+          message: "Each spend requires externalId, utxoIndex, and message",
+        };
         return;
       }
 
       if (!Number.isInteger(utxoIndex) || utxoIndex < 0 || utxoIndex >= 300) {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: `utxoIndex must be an integer 0-299, got ${utxoIndex}` };
+        ctx.response.body = {
+          message: `utxoIndex must be an integer 0-299, got ${utxoIndex}`,
+        };
         return;
       }
 
       // Verify user exists and is active
-      const user = await userRepo.findByExternalIdAndChannel(externalId, channelContractId);
+      const user = await userRepo.findByExternalIdAndChannel(
+        externalId,
+        channelContractId,
+      );
       if (!user) {
         ctx.response.status = Status.NotFound;
         ctx.response.body = { message: `User not registered for this channel` };
@@ -259,7 +283,9 @@ export const postSignSpendHandler = async (ctx: Context) => {
       }
 
       // Only the provider that registered this user can request signatures
-      if (user.registeredByProvider && user.registeredByProvider !== session.sub) {
+      if (
+        user.registeredByProvider && user.registeredByProvider !== session.sub
+      ) {
         ctx.response.status = Status.Forbidden;
         ctx.response.body = { message: "Not authorized to sign for this user" };
         return;
@@ -270,7 +296,9 @@ export const postSignSpendHandler = async (ctx: Context) => {
         messageBytes = hexToBytes(message);
       } catch {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "message must be a valid hex string with even length" };
+        ctx.response.body = {
+          message: "message must be a valid hex string with even length",
+        };
         return;
       }
       const signature = await signWithDerivedKey(

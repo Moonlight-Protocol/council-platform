@@ -2,7 +2,7 @@ import type { Context } from "@oak/oak";
 
 export async function appendResponseHeadersMiddleware(
   ctx: Context,
-  next: () => Promise<unknown>
+  next: () => Promise<unknown>,
 ) {
   await next();
 

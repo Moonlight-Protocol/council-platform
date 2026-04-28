@@ -1,15 +1,16 @@
-import { assertEquals, assertRejects } from "jsr:@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { Keypair } from "stellar-sdk";
 import {
+  type CouncilAuthConfig,
   createCouncilChallenge,
   verifyCouncilChallenge,
-  type CouncilAuthConfig,
 } from "./council-auth.ts";
 import { Buffer } from "buffer";
 
 const TEST_KEYPAIR = Keypair.random();
 const TEST_PUBLIC_KEY = TEST_KEYPAIR.publicKey();
 
+// deno-lint-ignore require-await -- mock satisfies CouncilAuthConfig.generateToken contract
 const mockGenerateToken = async (_sub: string, _sid: string) =>
   `mock-jwt-${_sub.slice(0, 8)}`;
 
@@ -85,8 +86,7 @@ Deno.test("verifyCouncilChallenge - rejects wrong public key", async () => {
   const otherKey = Keypair.random().publicKey();
 
   await assertRejects(
-    () =>
-      verifyCouncilChallenge(nonce, "sig", otherKey, AUTH_CONFIG),
+    () => verifyCouncilChallenge(nonce, "sig", otherKey, AUTH_CONFIG),
     Error,
     "Public key mismatch",
   );

@@ -1,5 +1,9 @@
 import { isError } from "@/utils/type-guards/is-error.ts";
-import type { APIDetails, ApiError, PlatformErrorShape } from "@/error/types.ts";
+import type {
+  APIDetails,
+  ApiError,
+  PlatformErrorShape,
+} from "@/error/types.ts";
 import { isDefined } from "@/utils/type-guards/is-defined.ts";
 
 export enum GENERAL_ERROR_CODES {
@@ -30,7 +34,9 @@ export class PlatformError<M = undefined | unknown> extends Error {
     return e instanceof PlatformError;
   }
 
-  static unexpected(args?: Partial<PlatformErrorShape<unknown>>): PlatformError<unknown> {
+  static unexpected(
+    args?: Partial<PlatformErrorShape<unknown>>,
+  ): PlatformError<unknown> {
     return new PlatformError<unknown>({
       source: args?.source ?? "@general/unexpected",
       code: (args?.code ?? GENERAL_ERROR_CODES.UNEXPECTED) as string,
@@ -42,7 +48,10 @@ export class PlatformError<M = undefined | unknown> extends Error {
     });
   }
 
-  static fromUnknown(error: unknown, ctx?: Partial<PlatformErrorShape<unknown>>): PlatformError<unknown> {
+  static fromUnknown(
+    error: unknown,
+    ctx?: Partial<PlatformErrorShape<unknown>>,
+  ): PlatformError<unknown> {
     if (error instanceof PlatformError) return error;
     if (error instanceof Error) {
       return new PlatformError({
@@ -66,7 +75,9 @@ export class PlatformError<M = undefined | unknown> extends Error {
       source: this.source,
       details: this.details,
       meta: this.meta,
-      baseError: isError(this.baseError) ? { baseError: this.baseError.message } : this.baseError,
+      baseError: isError(this.baseError)
+        ? { baseError: this.baseError.message }
+        : this.baseError,
       api: this.api,
     };
   }
@@ -76,18 +87,20 @@ export class PlatformError<M = undefined | unknown> extends Error {
   }
 
   getAPIError(): ApiError {
-    if (this.hasAPIError())
+    if (this.hasAPIError()) {
       return {
         code: this.code,
         status: this.api.status,
         message: this.api.message,
         details: this.api.details,
       };
+    }
     return {
       code: this.code,
       status: 500,
       message: "Internal server error.",
-      details: "Contact your council administrator and share the details of this error.",
+      details:
+        "Contact your council administrator and share the details of this error.",
     };
   }
 }

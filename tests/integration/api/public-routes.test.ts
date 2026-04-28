@@ -13,17 +13,19 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
 import {
-  resetDb,
   ensureInitialized,
-  seedJoinRequest,
   JoinRequestStatus,
+  resetDb,
+  seedJoinRequest,
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
 import publicRouter from "@/http/v1/public/routes.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { drizzleClient } from "../../test_helpers.ts";
-const { createPostJoinRequestHandler } = await import("@/http/v1/public/join-request.ts");
+const { createPostJoinRequestHandler } = await import(
+  "@/http/v1/public/join-request.ts"
+);
 const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
 const joinRequestHandler = createPostJoinRequestHandler(joinRequestRepo);
 
@@ -34,25 +36,39 @@ const joinRequestHandler = createPostJoinRequestHandler(joinRequestRepo);
 Deno.test("publicRouter registers all expected routes", () => {
   const routes = [...publicRouter];
 
-  const council = routes.find((r) => r.path === "/public/council" && r.methods.includes("GET"));
+  const council = routes.find((r) =>
+    r.path === "/public/council" && r.methods.includes("GET")
+  );
   assertExists(council, "GET /public/council should be registered");
 
-  const councils = routes.find((r) => r.path === "/public/councils" && r.methods.includes("GET"));
+  const councils = routes.find((r) =>
+    r.path === "/public/councils" && r.methods.includes("GET")
+  );
   assertExists(councils, "GET /public/councils should be registered");
 
-  const providers = routes.find((r) => r.path === "/public/providers" && r.methods.includes("GET"));
+  const providers = routes.find((r) =>
+    r.path === "/public/providers" && r.methods.includes("GET")
+  );
   assertExists(providers, "GET /public/providers should be registered");
 
-  const channels = routes.find((r) => r.path === "/public/channels" && r.methods.includes("GET"));
+  const channels = routes.find((r) =>
+    r.path === "/public/channels" && r.methods.includes("GET")
+  );
   assertExists(channels, "GET /public/channels should be registered");
 
-  const knownAssets = routes.find((r) => r.path === "/public/known-assets" && r.methods.includes("GET"));
+  const knownAssets = routes.find((r) =>
+    r.path === "/public/known-assets" && r.methods.includes("GET")
+  );
   assertExists(knownAssets, "GET /public/known-assets should be registered");
 
   const joinReq = routes.find(
-    (r) => r.path === "/public/provider/join-request" && r.methods.includes("POST"),
+    (r) =>
+      r.path === "/public/provider/join-request" && r.methods.includes("POST"),
   );
-  assertExists(joinReq, "POST /public/provider/join-request should be registered");
+  assertExists(
+    joinReq,
+    "POST /public/provider/join-request should be registered",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -67,7 +83,12 @@ Deno.test("POST /public/provider/join-request - creates a join request", async (
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     path: "/public/provider/join-request",
-    body: { publicKey: pk, councilId: "default", label: "Test Provider", contactEmail: "test@example.com" },
+    body: {
+      publicKey: pk,
+      councilId: "default",
+      label: "Test Provider",
+      contactEmail: "test@example.com",
+    },
   });
 
   await joinRequestHandler(ctx);
@@ -131,7 +152,10 @@ Deno.test("POST /public/provider/join-request - rejects duplicate pending reques
 
   const res = getResponse();
   assertEquals(res.status, 409);
-  assertEquals(res.body.message, "A pending join request already exists for this public key");
+  assertEquals(
+    res.body.message,
+    "A pending join request already exists for this public key",
+  );
 });
 
 Deno.test("POST /public/provider/join-request - allows request if previous was approved", async () => {

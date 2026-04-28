@@ -7,10 +7,10 @@ import { assertEquals, assertExists } from "@std/assert";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import {
   drizzleClient,
-  resetDb,
   ensureInitialized,
-  seedJoinRequest,
   JoinRequestStatus,
+  resetDb,
+  seedJoinRequest,
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
@@ -62,10 +62,22 @@ Deno.test("listPending - returns only pending requests", async () => {
   await ensureInitialized();
   await resetDb();
 
-  await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.PENDING });
-  await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.PENDING });
-  await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.APPROVED });
-  await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.REJECTED });
+  await seedJoinRequest({
+    publicKey: Keypair.random().publicKey(),
+    status: JoinRequestStatus.PENDING,
+  });
+  await seedJoinRequest({
+    publicKey: Keypair.random().publicKey(),
+    status: JoinRequestStatus.PENDING,
+  });
+  await seedJoinRequest({
+    publicKey: Keypair.random().publicKey(),
+    status: JoinRequestStatus.APPROVED,
+  });
+  await seedJoinRequest({
+    publicKey: Keypair.random().publicKey(),
+    status: JoinRequestStatus.REJECTED,
+  });
 
   const pending = await repo.listPending("default");
   assertEquals(pending.length, 2);
@@ -78,9 +90,18 @@ Deno.test("listAll - returns all non-deleted requests", async () => {
   await ensureInitialized();
   await resetDb();
 
-  await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.PENDING });
-  await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.APPROVED });
-  await seedJoinRequest({ publicKey: Keypair.random().publicKey(), status: JoinRequestStatus.REJECTED });
+  await seedJoinRequest({
+    publicKey: Keypair.random().publicKey(),
+    status: JoinRequestStatus.PENDING,
+  });
+  await seedJoinRequest({
+    publicKey: Keypair.random().publicKey(),
+    status: JoinRequestStatus.APPROVED,
+  });
+  await seedJoinRequest({
+    publicKey: Keypair.random().publicKey(),
+    status: JoinRequestStatus.REJECTED,
+  });
 
   const all = await repo.listAll("default");
   assertEquals(all.length, 3);

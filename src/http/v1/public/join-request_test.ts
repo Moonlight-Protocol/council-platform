@@ -1,8 +1,9 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { Keypair } from "stellar-sdk";
 import { createPostJoinRequestHandler } from "./join-request.ts";
 
-const TEST_COUNCIL_ID = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+const TEST_COUNCIL_ID =
+  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 // Mock repo — validation tests never reach the DB calls
 // deno-lint-ignore no-explicit-any
@@ -39,7 +40,10 @@ Deno.test("join-request: rejects missing publicKey", async () => {
 });
 
 Deno.test("join-request: rejects invalid Stellar key format", async () => {
-  const ctx = createMockContext({ councilId: TEST_COUNCIL_ID, publicKey: "not-a-key" });
+  const ctx = createMockContext({
+    councilId: TEST_COUNCIL_ID,
+    publicKey: "not-a-key",
+  });
   await handler(ctx);
   assertEquals(ctx.response.status, 400);
   assertEquals(ctx.response.body.message, "Invalid Stellar public key format");
@@ -54,7 +58,10 @@ Deno.test("join-request: rejects label over 200 chars", async () => {
   });
   await handler(ctx);
   assertEquals(ctx.response.status, 400);
-  assertEquals(ctx.response.body.message, "label must be at most 200 characters");
+  assertEquals(
+    ctx.response.body.message,
+    "label must be at most 200 characters",
+  );
 });
 
 Deno.test("join-request: rejects jurisdictions over 50 entries", async () => {
@@ -66,7 +73,10 @@ Deno.test("join-request: rejects jurisdictions over 50 entries", async () => {
   });
   await handler(ctx);
   assertEquals(ctx.response.status, 400);
-  assertEquals(ctx.response.body.message, "jurisdictions must have at most 50 entries");
+  assertEquals(
+    ctx.response.body.message,
+    "jurisdictions must have at most 50 entries",
+  );
 });
 
 Deno.test("join-request: rejects non-HTTP callbackEndpoint", async () => {
@@ -78,7 +88,10 @@ Deno.test("join-request: rejects non-HTTP callbackEndpoint", async () => {
   });
   await handler(ctx);
   assertEquals(ctx.response.status, 400);
-  assertEquals(ctx.response.body.message, "callbackEndpoint must be a valid HTTP(S) URL");
+  assertEquals(
+    ctx.response.body.message,
+    "callbackEndpoint must be a valid HTTP(S) URL",
+  );
 });
 
 Deno.test("join-request: rejects callbackEndpoint over 500 chars", async () => {
@@ -90,5 +103,8 @@ Deno.test("join-request: rejects callbackEndpoint over 500 chars", async () => {
   });
   await handler(ctx);
   assertEquals(ctx.response.status, 400);
-  assertEquals(ctx.response.body.message, "callbackEndpoint must be at most 500 characters");
+  assertEquals(
+    ctx.response.body.message,
+    "callbackEndpoint must be at most 500 characters",
+  );
 });

@@ -55,7 +55,10 @@ export const addJurisdictionHandler = async (ctx: Context) => {
     const code = countryCode.toUpperCase();
     if (!COUNTRY_CODE_RE.test(code)) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "countryCode must be a valid ISO 3166-1 alpha-2 code (e.g. US, BR, DE)" };
+      ctx.response.body = {
+        message:
+          "countryCode must be a valid ISO 3166-1 alpha-2 code (e.g. US, BR, DE)",
+      };
       return;
     }
 
@@ -66,7 +69,10 @@ export const addJurisdictionHandler = async (ctx: Context) => {
       return;
     }
 
-    const deleted = await jurisdictionRepo.findDeletedByCountryCode(councilId, code);
+    const deleted = await jurisdictionRepo.findDeletedByCountryCode(
+      councilId,
+      code,
+    );
     let jurisdiction;
     if (deleted) {
       jurisdiction = await jurisdictionRepo.update(deleted.id, {
@@ -100,7 +106,9 @@ export const addJurisdictionHandler = async (ctx: Context) => {
       ctx.response.status = Status.BadRequest;
       ctx.response.body = { message: "Invalid request body" };
     } else {
-      LOG.error("Failed to add jurisdiction", { error: error instanceof Error ? error.message : String(error) });
+      LOG.error("Failed to add jurisdiction", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       ctx.response.status = Status.InternalServerError;
       ctx.response.body = { message: "Failed to add jurisdiction" };
     }

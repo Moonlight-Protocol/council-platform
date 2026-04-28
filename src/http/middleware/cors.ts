@@ -16,8 +16,14 @@ function isAllowed(origin: string): boolean {
 
 function setCorsHeaders(ctx: Context, origin: string) {
   ctx.response.headers.set("Access-Control-Allow-Origin", origin);
-  ctx.response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  ctx.response.headers.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS",
+  );
+  ctx.response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization",
+  );
   ctx.response.headers.set("Access-Control-Max-Age", "86400");
 }
 

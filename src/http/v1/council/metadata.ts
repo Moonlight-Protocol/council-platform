@@ -25,7 +25,10 @@ export const getMetadataHandler = async (ctx: Context) => {
     }
 
     const ownerPublicKey = (ctx.state.session as { sub: string }).sub;
-    const metadata = await metadataRepo.getByIdAndOwner(councilId, ownerPublicKey);
+    const metadata = await metadataRepo.getByIdAndOwner(
+      councilId,
+      ownerPublicKey,
+    );
 
     if (!metadata) {
       ctx.response.status = Status.NotFound;
@@ -117,7 +120,9 @@ export const putMetadataHandler = async (ctx: Context) => {
     }
     if (description && description.length > 2000) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "description must be at most 2000 characters" };
+      ctx.response.body = {
+        message: "description must be at most 2000 characters",
+      };
       return;
     }
 
@@ -128,7 +133,9 @@ export const putMetadataHandler = async (ctx: Context) => {
     }
     if (contactEmail && contactEmail.length > 200) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "contactEmail must be at most 200 characters" };
+      ctx.response.body = {
+        message: "contactEmail must be at most 200 characters",
+      };
       return;
     }
 
@@ -137,8 +144,12 @@ export const putMetadataHandler = async (ctx: Context) => {
     const updateData: Record<string, unknown> = {
       name: name.trim(),
     };
-    if (description !== undefined) updateData.description = description?.trim() ?? null;
-    if (contactEmail !== undefined) updateData.contactEmail = contactEmail?.trim() ?? null;
+    if (description !== undefined) {
+      updateData.description = description?.trim() ?? null;
+    }
+    if (contactEmail !== undefined) {
+      updateData.contactEmail = contactEmail?.trim() ?? null;
+    }
     if (sessionPublicKey) updateData.councilPublicKey = sessionPublicKey;
     if (opexPublicKey) {
       try {
@@ -146,7 +157,9 @@ export const putMetadataHandler = async (ctx: Context) => {
         Keypair.fromPublicKey(opexPublicKey.trim());
       } catch {
         ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "opexPublicKey must be a valid Stellar public key" };
+        ctx.response.body = {
+          message: "opexPublicKey must be a valid Stellar public key",
+        };
         return;
       }
       updateData.opexPublicKey = opexPublicKey.trim();
@@ -175,7 +188,10 @@ export const putMetadataHandler = async (ctx: Context) => {
     const isNewCouncil = !existing;
     if (isNewCouncil) {
       const root = crypto.getRandomValues(new Uint8Array(32));
-      updateData.encryptedDerivationRoot = await encryptSecret(root, SERVICE_AUTH_SECRET);
+      updateData.encryptedDerivationRoot = await encryptSecret(
+        root,
+        SERVICE_AUTH_SECRET,
+      );
       root.fill(0); // Best-effort zeroization
     } else {
       updateData.encryptedDerivationRoot = existing.encryptedDerivationRoot;
@@ -206,7 +222,9 @@ export const putMetadataHandler = async (ctx: Context) => {
       ctx.response.status = Status.BadRequest;
       ctx.response.body = { message: "Invalid request body" };
     } else {
-      LOG.error("Failed to update metadata", { error: error instanceof Error ? error.message : String(error) });
+      LOG.error("Failed to update metadata", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       ctx.response.status = Status.InternalServerError;
       ctx.response.body = { message: "Failed to update metadata" };
     }
@@ -228,7 +246,10 @@ export const deleteMetadataHandler = async (ctx: Context) => {
 
     // Verify ownership before deleting
     const ownerPublicKey = (ctx.state.session as { sub: string }).sub;
-    const council = await metadataRepo.getByIdAndOwner(councilId, ownerPublicKey);
+    const council = await metadataRepo.getByIdAndOwner(
+      councilId,
+      ownerPublicKey,
+    );
     if (!council) {
       ctx.response.status = Status.NotFound;
       ctx.response.body = { message: "Council not found" };

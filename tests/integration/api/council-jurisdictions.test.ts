@@ -5,16 +5,26 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { resetDb, ensureInitialized, seedJurisdiction, seedCouncilMetadata, ADMIN_KEYPAIR } from "../../test_helpers.ts";
+import {
+  ADMIN_KEYPAIR,
+  ensureInitialized,
+  resetDb,
+  seedCouncilMetadata,
+  seedJurisdiction,
+} from "../../test_helpers.ts";
 
 import {
-  listJurisdictionsHandler,
   addJurisdictionHandler,
+  listJurisdictionsHandler,
   removeJurisdictionHandler,
 } from "@/http/v1/council/jurisdictions.ts";
 
 const adminState = {
-  session: { sub: ADMIN_KEYPAIR.publicKey(), type: "admin", exp: Math.floor(Date.now() / 1000) + 3600 },
+  session: {
+    sub: ADMIN_KEYPAIR.publicKey(),
+    type: "admin",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -29,7 +39,11 @@ Deno.test("GET /council/jurisdictions - lists jurisdictions", async () => {
   await seedJurisdiction({ countryCode: "US", label: "United States" });
   await seedJurisdiction({ countryCode: "GB", label: "United Kingdom" });
 
-  const { ctx, getResponse } = createMockContext({ method: "GET", query: { councilId: "default" }, state: { ...adminState } });
+  const { ctx, getResponse } = createMockContext({
+    method: "GET",
+    query: { councilId: "default" },
+    state: { ...adminState },
+  });
   await listJurisdictionsHandler(ctx);
 
   const res = getResponse();

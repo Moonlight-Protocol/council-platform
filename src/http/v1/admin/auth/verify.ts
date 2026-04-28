@@ -14,13 +14,20 @@ export const postVerifyHandler = async (ctx: Context) => {
 
     if (!nonce || !signature || !publicKey) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "nonce, signature, and publicKey are required" };
+      ctx.response.body = {
+        message: "nonce, signature, and publicKey are required",
+      };
       return;
     }
 
-    const { token } = await verifyCouncilChallenge(nonce, signature, publicKey, {
-      generateToken: (subject, sessionId) => generateJwt(subject, sessionId),
-    });
+    const { token } = await verifyCouncilChallenge(
+      nonce,
+      signature,
+      publicKey,
+      {
+        generateToken: (subject, sessionId) => generateJwt(subject, sessionId),
+      },
+    );
 
     await walletUserRepo.findOrCreate(publicKey);
 

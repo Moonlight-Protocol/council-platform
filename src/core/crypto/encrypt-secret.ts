@@ -12,7 +12,10 @@ const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
 const ITERATIONS = 100000;
 
-async function deriveKey(secret: string, salt: BufferSource): Promise<CryptoKey> {
+async function deriveKey(
+  secret: string,
+  salt: BufferSource,
+): Promise<CryptoKey> {
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -30,7 +33,10 @@ async function deriveKey(secret: string, salt: BufferSource): Promise<CryptoKey>
 }
 
 /** Encrypts a binary secret with the given password and returns a base64 ciphertext. */
-export async function encryptSecret(plaintext: Uint8Array, secret: string): Promise<string> {
+export async function encryptSecret(
+  plaintext: Uint8Array,
+  secret: string,
+): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
   const key = await deriveKey(secret, salt);
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
@@ -48,12 +54,19 @@ export async function encryptSecret(plaintext: Uint8Array, secret: string): Prom
 }
 
 /** Decrypts a base64 ciphertext (produced by encryptSecret) back to its original bytes. */
-export async function decryptSecret(ciphertext: string, secret: string): Promise<Uint8Array> {
+export async function decryptSecret(
+  ciphertext: string,
+  secret: string,
+): Promise<Uint8Array> {
   const combined = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
   const salt = combined.slice(0, SALT_LENGTH);
   const iv = combined.slice(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
   const encrypted = combined.slice(SALT_LENGTH + IV_LENGTH);
   const key = await deriveKey(secret, salt);
-  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encrypted,
+  );
   return new Uint8Array(decrypted);
 }

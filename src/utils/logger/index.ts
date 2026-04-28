@@ -36,10 +36,22 @@ export class Logger {
     console.log(`${prefix} ${color(this.format(...args))}`);
   }
 
-  trace(...args: unknown[]) { this.log(LogLevel.TRACE, chalk.white, ...args); }
-  debug(...args: unknown[]) { this.log(LogLevel.DEBUG, chalk.green, ...args); }
-  info(...args: unknown[]) { this.log(LogLevel.INFO, chalk.blue, ...args); }
-  warn(...args: unknown[]) { this.log(LogLevel.WARN, chalk.yellow, ...args); }
-  error(...args: unknown[]) { this.log(LogLevel.ERROR, chalk.red, ...args); }
-  fatal(...args: unknown[]) { this.log(LogLevel.FATAL, chalk.bgRed.white, ...args); }
+  trace(...args: unknown[]) {
+    this.log(LogLevel.TRACE, chalk.white, ...args);
+  }
+  debug(...args: unknown[]) {
+    this.log(LogLevel.DEBUG, chalk.green, ...args);
+  }
+  info(...args: unknown[]) {
+    this.log(LogLevel.INFO, chalk.blue, ...args);
+  }
+  warn(...args: unknown[]) {
+    this.log(LogLevel.WARN, chalk.yellow, ...args);
+  }
+  error(...args: unknown[]) {
+    this.log(LogLevel.ERROR, chalk.red, ...args);
+  }
+  fatal(...args: unknown[]) {
+    this.log(LogLevel.FATAL, chalk.bgRed.white, ...args);
+  }
 }

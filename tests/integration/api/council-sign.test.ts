@@ -8,20 +8,20 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
 import {
-  resetDb,
-  ensureInitialized,
-  seedCouncilWithRoot,
-  seedProvider,
-  seedCustodialUser,
-  testContractId,
-  ProviderStatus,
   CustodialUserStatus,
+  ensureInitialized,
+  ProviderStatus,
+  resetDb,
+  seedCouncilWithRoot,
+  seedCustodialUser,
+  seedProvider,
+  testContractId,
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
 import {
-  postRegisterUserHandler,
   postGetKeysHandler,
+  postRegisterUserHandler,
   postSignSpendHandler,
 } from "@/http/v1/council/sign.ts";
 
@@ -57,11 +57,18 @@ Deno.test("POST /council/sign/register - creates user with provider JWT", async 
   await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { councilId: "default", externalId: "user-001", channelContractId: TEST_CONTRACT_ID },
+    body: {
+      councilId: "default",
+      externalId: "user-001",
+      channelContractId: TEST_CONTRACT_ID,
+    },
     state: providerState(providerKp.publicKey()),
   });
   await postRegisterUserHandler(ctx);
@@ -82,7 +89,11 @@ Deno.test("POST /council/sign/register - rejects non-provider JWT", async () => 
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { councilId: "default", externalId: "user-001", channelContractId: TEST_CONTRACT_ID },
+    body: {
+      councilId: "default",
+      externalId: "user-001",
+      channelContractId: TEST_CONTRACT_ID,
+    },
     state: adminState(kp.publicKey()),
   });
   await postRegisterUserHandler(ctx);
@@ -97,9 +108,16 @@ Deno.test("POST /council/sign/register - returns same data for duplicate registr
   await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
   const state = providerState(providerKp.publicKey());
-  const body = { councilId: "default", externalId: "user-dup", channelContractId: TEST_CONTRACT_ID };
+  const body = {
+    councilId: "default",
+    externalId: "user-dup",
+    channelContractId: TEST_CONTRACT_ID,
+  };
 
   // First registration
   const first = createMockContext({ method: "POST", body, state });
@@ -114,7 +132,10 @@ Deno.test("POST /council/sign/register - returns same data for duplicate registr
   assertEquals(res2.status, 200);
 
   assertEquals(res1.body.data.userId, res2.body.data.userId);
-  assertEquals(res1.body.data.p256PublicKeyHex, res2.body.data.p256PublicKeyHex);
+  assertEquals(
+    res1.body.data.p256PublicKeyHex,
+    res2.body.data.p256PublicKeyHex,
+  );
 });
 
 Deno.test("POST /council/sign/register - rejects missing externalId", async () => {
@@ -122,7 +143,10 @@ Deno.test("POST /council/sign/register - rejects missing externalId", async () =
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -146,13 +170,20 @@ Deno.test("POST /council/sign/keys - returns derived public keys", async () => {
   await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
   const state = providerState(providerKp.publicKey());
 
   // Register user first
   const regCtx = createMockContext({
     method: "POST",
-    body: { councilId: "default", externalId: "user-keys", channelContractId: TEST_CONTRACT_ID },
+    body: {
+      councilId: "default",
+      externalId: "user-keys",
+      channelContractId: TEST_CONTRACT_ID,
+    },
     state,
   });
   await postRegisterUserHandler(regCtx.ctx);
@@ -186,7 +217,10 @@ Deno.test("POST /council/sign/keys - rejects unregistered user", async () => {
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -209,7 +243,10 @@ Deno.test("POST /council/sign/keys - rejects more than 300 indices", async () =>
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const indices = Array.from({ length: 301 }, (_, i) => i);
 
@@ -240,20 +277,28 @@ Deno.test("POST /council/sign/spend - returns signatures for valid request", asy
   await seedCouncilWithRoot();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
   const state = providerState(providerKp.publicKey());
 
   // Register user first
   const regCtx = createMockContext({
     method: "POST",
-    body: { councilId: "default", externalId: "user-spend", channelContractId: TEST_CONTRACT_ID },
+    body: {
+      councilId: "default",
+      externalId: "user-spend",
+      channelContractId: TEST_CONTRACT_ID,
+    },
     state,
   });
   await postRegisterUserHandler(regCtx.ctx);
   assertEquals(regCtx.getResponse().status, 200);
 
   // Sign a spend
-  const messageHex = "deadbeef01020304deadbeef01020304deadbeef01020304deadbeef01020304";
+  const messageHex =
+    "deadbeef01020304deadbeef01020304deadbeef01020304deadbeef01020304";
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     body: {
@@ -303,7 +348,10 @@ Deno.test("POST /council/sign/spend - rejects unregistered user", async () => {
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -329,8 +377,14 @@ Deno.test("POST /council/sign/spend - rejects wrong provider for user", async ()
 
   const providerAKp = Keypair.random();
   const providerBKp = Keypair.random();
-  await seedProvider({ publicKey: providerAKp.publicKey(), status: ProviderStatus.ACTIVE });
-  await seedProvider({ publicKey: providerBKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerAKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
+  await seedProvider({
+    publicKey: providerBKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   // Seed a custodial user registered by provider A
   await seedCustodialUser({
@@ -363,7 +417,10 @@ Deno.test("POST /council/sign/spend - rejects suspended user", async () => {
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   // Seed a suspended custodial user
   await seedCustodialUser({
@@ -395,7 +452,10 @@ Deno.test("POST /council/sign/spend - rejects invalid hex message", async () => 
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   // Seed an active custodial user
   await seedCustodialUser({
@@ -418,5 +478,8 @@ Deno.test("POST /council/sign/spend - rejects invalid hex message", async () => 
 
   const res = getResponse();
   assertEquals(res.status, 400);
-  assertEquals(res.body.message, "message must be a valid hex string with even length");
+  assertEquals(
+    res.body.message,
+    "message must be a valid hex string with even length",
+  );
 });

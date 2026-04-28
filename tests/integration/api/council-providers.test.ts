@@ -5,17 +5,28 @@
  */
 import { assertEquals } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { resetDb, ensureInitialized, seedProvider, seedCouncilMetadata, ADMIN_KEYPAIR, ProviderStatus } from "../../test_helpers.ts";
+import {
+  ADMIN_KEYPAIR,
+  ensureInitialized,
+  ProviderStatus,
+  resetDb,
+  seedCouncilMetadata,
+  seedProvider,
+} from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
 import {
-  listProvidersHandler,
   getProviderHandler,
+  listProvidersHandler,
   updateProviderHandler,
 } from "@/http/v1/council/providers.ts";
 
 const adminState = {
-  session: { sub: ADMIN_KEYPAIR.publicKey(), type: "admin", exp: Math.floor(Date.now() / 1000) + 3600 },
+  session: {
+    sub: ADMIN_KEYPAIR.publicKey(),
+    type: "admin",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -27,8 +38,14 @@ Deno.test("GET /council/providers - lists all providers", async () => {
   await resetDb();
   await seedCouncilMetadata();
 
-  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.ACTIVE });
-  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.REMOVED });
+  await seedProvider({
+    publicKey: Keypair.random().publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
+  await seedProvider({
+    publicKey: Keypair.random().publicKey(),
+    status: ProviderStatus.REMOVED,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "GET",
@@ -48,8 +65,14 @@ Deno.test("GET /council/providers?status=ACTIVE - filters to active", async () =
   await resetDb();
   await seedCouncilMetadata();
 
-  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.ACTIVE });
-  await seedProvider({ publicKey: Keypair.random().publicKey(), status: ProviderStatus.REMOVED });
+  await seedProvider({
+    publicKey: Keypair.random().publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
+  await seedProvider({
+    publicKey: Keypair.random().publicKey(),
+    status: ProviderStatus.REMOVED,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "GET",

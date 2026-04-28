@@ -1,6 +1,8 @@
 import { Router, Status } from "@oak/oak";
 
-const denoJson = JSON.parse(await Deno.readTextFile(new URL("../../../../deno.json", import.meta.url)));
+const denoJson = JSON.parse(
+  await Deno.readTextFile(new URL("../../../../deno.json", import.meta.url)),
+);
 const version: string = denoJson.version ?? "unknown";
 
 const healthRouter = new Router();

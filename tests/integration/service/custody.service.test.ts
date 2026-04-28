@@ -5,17 +5,17 @@
  */
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import {
+  CustodialUserStatus,
   ensureInitialized,
   resetDb,
   seedCouncilWithRoot,
   seedCustodialUser,
   testContractId,
-  CustodialUserStatus,
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 import {
-  registerCustodialUser,
   getUserPublicKeys,
+  registerCustodialUser,
 } from "@/core/service/custody/custody.service.ts";
 
 const CONTRACT_ID = testContractId();
@@ -76,7 +76,11 @@ Deno.test("getUserPublicKeys - returns derived keys at specified indices", async
     channelContractId: CONTRACT_ID,
   });
 
-  const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 1, 2]);
+  const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
+    0,
+    1,
+    2,
+  ]);
   assertEquals(keys.length, 3);
 
   for (const key of keys) {
@@ -94,8 +98,16 @@ Deno.test("getUserPublicKeys - returns consistent keys for same inputs", async (
     channelContractId: CONTRACT_ID,
   });
 
-  const first = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 5, 10]);
-  const second = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 5, 10]);
+  const first = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
+    0,
+    5,
+    10,
+  ]);
+  const second = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
+    0,
+    5,
+    10,
+  ]);
 
   assertEquals(first, second);
 });
@@ -110,7 +122,10 @@ Deno.test("getUserPublicKeys - returns different keys for different indices", as
     channelContractId: CONTRACT_ID,
   });
 
-  const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0, 1]);
+  const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
+    0,
+    1,
+  ]);
   assertEquals(keys.length, 2);
   // Keys at different indices must differ
   assertEquals(keys[0] !== keys[1], true);

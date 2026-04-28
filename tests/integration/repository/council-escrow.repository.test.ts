@@ -7,12 +7,12 @@ import { assertEquals } from "@std/assert";
 import { CouncilEscrowRepository } from "@/persistence/drizzle/repository/council-escrow.repository.ts";
 import {
   drizzleClient,
-  resetDb,
   ensureInitialized,
+  EscrowStatus,
+  resetDb,
   seedEscrow,
   testAddress,
   testContractId,
-  EscrowStatus,
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
@@ -44,9 +44,21 @@ Deno.test("findHeldForRecipient - returns only HELD escrows", async () => {
 
   const recipient = testAddress();
 
-  await seedEscrow({ recipientAddress: recipient, status: EscrowStatus.HELD, amount: 1000n });
-  await seedEscrow({ recipientAddress: recipient, status: EscrowStatus.HELD, amount: 2000n });
-  await seedEscrow({ recipientAddress: recipient, status: EscrowStatus.RELEASED, amount: 3000n });
+  await seedEscrow({
+    recipientAddress: recipient,
+    status: EscrowStatus.HELD,
+    amount: 1000n,
+  });
+  await seedEscrow({
+    recipientAddress: recipient,
+    status: EscrowStatus.HELD,
+    amount: 2000n,
+  });
+  await seedEscrow({
+    recipientAddress: recipient,
+    status: EscrowStatus.RELEASED,
+    amount: 3000n,
+  });
 
   const held = await repo.findHeldForRecipient(recipient);
   assertEquals(held.length, 2);
@@ -77,8 +89,14 @@ Deno.test("findByRecipient - returns all escrows for recipient regardless of sta
   const recipient = testAddress();
 
   await seedEscrow({ recipientAddress: recipient, status: EscrowStatus.HELD });
-  await seedEscrow({ recipientAddress: recipient, status: EscrowStatus.RELEASED });
-  await seedEscrow({ recipientAddress: recipient, status: EscrowStatus.EXPIRED });
+  await seedEscrow({
+    recipientAddress: recipient,
+    status: EscrowStatus.RELEASED,
+  });
+  await seedEscrow({
+    recipientAddress: recipient,
+    status: EscrowStatus.EXPIRED,
+  });
 
   const all = await repo.findByRecipient(recipient);
   assertEquals(all.length, 3);
@@ -90,6 +108,8 @@ Deno.test("update - changes status from HELD to RELEASED", async () => {
 
   const escrow = await seedEscrow({ status: EscrowStatus.HELD });
 
-  const updated = await repo.update(escrow.id, { status: EscrowStatus.RELEASED });
+  const updated = await repo.update(escrow.id, {
+    status: EscrowStatus.RELEASED,
+  });
   assertEquals(updated.status, EscrowStatus.RELEASED);
 });

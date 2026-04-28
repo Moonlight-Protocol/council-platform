@@ -5,7 +5,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { ensureInitialized, resetDb } from "../../test_helpers.ts";
+import { ensureInitialized } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
 
@@ -144,5 +144,8 @@ Deno.test("POST /admin/auth/verify - rejects missing fields", async () => {
 
   const res = getResponse();
   assertEquals(res.status, 400);
-  assertEquals(res.body.message, "nonce, signature, and publicKey are required");
+  assertEquals(
+    res.body.message,
+    "nonce, signature, and publicKey are required",
+  );
 });

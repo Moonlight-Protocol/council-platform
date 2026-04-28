@@ -17,7 +17,11 @@ Deno.test("healthRouter registers GET /health", () => {
   const healthRoute = routes.find(
     (r) => r.path === "/health" && r.methods.includes("GET"),
   );
-  assertEquals(healthRoute !== undefined, true, "GET /health should be registered on the router");
+  assertEquals(
+    healthRoute !== undefined,
+    true,
+    "GET /health should be registered on the router",
+  );
 });
 
 Deno.test("healthRouter has exactly one route", () => {

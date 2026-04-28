@@ -1,4 +1,4 @@
-import { pgTable, text, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { createBaseColumns } from "@/persistence/drizzle/entity/base.entity.ts";
 
 export enum ProviderStatus {

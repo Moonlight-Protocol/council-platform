@@ -27,7 +27,8 @@ export function selectNetwork(envNetwork: string): {
         NETWORK: "Test SDF Network ; September 2015",
       };
     case "local": {
-      const rpcUrl = loadOptionalEnv("STELLAR_RPC_URL") ?? "http://localhost:8000/soroban/rpc";
+      const rpcUrl = loadOptionalEnv("STELLAR_RPC_URL") ??
+        "http://localhost:8000/soroban/rpc";
       const horizonUrl = rpcUrl.replace("/soroban/rpc", "");
       return {
         NETWORK_CONFIG: NetworkConfig.CustomNet({

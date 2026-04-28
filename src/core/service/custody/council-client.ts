@@ -67,7 +67,7 @@ export class CouncilClient {
    * Register a non-custodial user with the council.
    * Returns the derived P256 root public key.
    */
-  async registerUser(
+  registerUser(
     externalId: string,
     channelContractId: string,
   ): Promise<RegisterUserResult> {
@@ -114,21 +114,25 @@ export class CouncilClient {
   /**
    * Check if a recipient has UTXO addresses for a channel.
    */
-  async checkRecipientUtxos(
+  checkRecipientUtxos(
     recipientAddress: string,
     channelContractId: string,
     count: number = 1,
   ): Promise<{ registered: boolean; publicKeys: string[] }> {
     return this.request<{ registered: boolean; publicKeys: string[] }>(
       "GET",
-      `/council/recipient/${encodeURIComponent(recipientAddress)}/utxos?channelContractId=${encodeURIComponent(channelContractId)}&count=${count}`,
+      `/council/recipient/${
+        encodeURIComponent(recipientAddress)
+      }/utxos?channelContractId=${
+        encodeURIComponent(channelContractId)
+      }&count=${count}`,
     );
   }
 
   /**
    * Deposit funds into escrow for a non-KYC'd recipient.
    */
-  async createEscrow(opts: {
+  createEscrow(opts: {
     senderAddress: string;
     recipientAddress: string;
     amount: string;
@@ -141,7 +145,7 @@ export class CouncilClient {
   /**
    * Get pending escrow summary for a recipient.
    */
-  async getEscrowSummary(
+  getEscrowSummary(
     recipientAddress: string,
   ): Promise<{
     pendingCount: number;
@@ -154,7 +158,10 @@ export class CouncilClient {
       createdAt: string;
     }>;
   }> {
-    return this.request("GET", `/council/escrow/${encodeURIComponent(recipientAddress)}`);
+    return this.request(
+      "GET",
+      `/council/escrow/${encodeURIComponent(recipientAddress)}`,
+    );
   }
 
   /**

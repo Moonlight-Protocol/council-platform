@@ -9,7 +9,16 @@ const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 const providerRepo = new CouncilProviderRepository(drizzleClient);
 
-function formatProvider(p: { id: string; publicKey: string; status: string; label: string | null; contactEmail: string | null; registeredByEvent: string | null }) {
+function formatProvider(
+  p: {
+    id: string;
+    publicKey: string;
+    status: string;
+    label: string | null;
+    contactEmail: string | null;
+    registeredByEvent: string | null;
+  },
+) {
   return {
     id: p.id,
     publicKey: p.publicKey,
@@ -69,7 +78,9 @@ export const getProviderHandler = async (ctx: Context) => {
       return;
     }
 
-    if (!await requireCouncilOwnership(ctx, provider.councilId, metadataRepo)) return;
+    if (!await requireCouncilOwnership(ctx, provider.councilId, metadataRepo)) {
+      return;
+    }
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -103,7 +114,9 @@ export const updateProviderHandler = async (ctx: Context) => {
       return;
     }
 
-    if (!await requireCouncilOwnership(ctx, provider.councilId, metadataRepo)) return;
+    if (!await requireCouncilOwnership(ctx, provider.councilId, metadataRepo)) {
+      return;
+    }
 
     const body = await ctx.request.body.json();
     const { label, contactEmail } = body;
@@ -115,7 +128,10 @@ export const updateProviderHandler = async (ctx: Context) => {
 
     const updated = await providerRepo.findById(id);
 
-    LOG.info("Provider metadata updated", { id, publicKey: provider.publicKey });
+    LOG.info("Provider metadata updated", {
+      id,
+      publicKey: provider.publicKey,
+    });
 
     ctx.response.status = Status.OK;
     ctx.response.body = {
@@ -127,7 +143,9 @@ export const updateProviderHandler = async (ctx: Context) => {
       ctx.response.status = Status.BadRequest;
       ctx.response.body = { message: "Invalid request body" };
     } else {
-      LOG.error("Failed to update provider", { error: error instanceof Error ? error.message : String(error) });
+      LOG.error("Failed to update provider", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       ctx.response.status = Status.InternalServerError;
       ctx.response.body = { message: "Failed to update provider" };
     }

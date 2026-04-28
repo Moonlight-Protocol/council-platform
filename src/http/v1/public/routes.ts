@@ -1,4 +1,4 @@
-import { Router, type Context, Status } from "@oak/oak";
+import { type Context, Router, Status } from "@oak/oak";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { CouncilJurisdictionRepository } from "@/persistence/drizzle/repository/council-jurisdiction.repository.ts";
@@ -56,12 +56,12 @@ async function returnCouncilSummary(ctx: Context, councilId: string) {
     data: {
       council: metadata
         ? {
-            name: metadata.name,
-            description: metadata.description,
-            contactEmail: metadata.contactEmail,
-            channelAuthId: metadata.id,
-            councilPublicKey: metadata.councilPublicKey,
-          }
+          name: metadata.name,
+          description: metadata.description,
+          contactEmail: metadata.contactEmail,
+          channelAuthId: metadata.id,
+          councilPublicKey: metadata.councilPublicKey,
+        }
         : null,
       jurisdictions: jurisdictions.map((j) => ({
         countryCode: j.countryCode,
@@ -214,10 +214,15 @@ const getKnownAssets = async (ctx: Context) => {
     ctx.response.status = Status.OK;
     ctx.response.body = {
       message: "Known assets retrieved",
-      data: assets.map((a) => ({ assetCode: a.assetCode, issuerAddress: a.issuerAddress })),
+      data: assets.map((a) => ({
+        assetCode: a.assetCode,
+        issuerAddress: a.issuerAddress,
+      })),
     };
   } catch (error) {
-    LOG.error("Failed to list known assets", { error: error instanceof Error ? error.message : String(error) });
+    LOG.error("Failed to list known assets", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     ctx.response.status = Status.InternalServerError;
     ctx.response.body = { message: "Failed to retrieve known assets" };
   }
@@ -240,7 +245,9 @@ const getMembershipStatus = async (ctx: Context) => {
 
     if (!councilId || !publicKey) {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "councilId and publicKey query parameters are required" };
+      ctx.response.body = {
+        message: "councilId and publicKey query parameters are required",
+      };
       return;
     }
 
@@ -253,7 +260,10 @@ const getMembershipStatus = async (ctx: Context) => {
     }
 
     // Check for pending request
-    const pending = await joinRequestRepo.findPendingByPublicKey(councilId, publicKey);
+    const pending = await joinRequestRepo.findPendingByPublicKey(
+      councilId,
+      publicKey,
+    );
     if (pending) {
       ctx.response.status = 202;
       ctx.response.body = { status: "PENDING" };
@@ -280,6 +290,9 @@ publicRouter.get("/public/council", getCouncilSummary);
 publicRouter.get("/public/providers", getPublicProviders);
 publicRouter.get("/public/channels", getPublicChannels);
 publicRouter.get("/public/known-assets", getKnownAssets);
-publicRouter.post("/public/provider/join-request", createPostJoinRequestHandler(joinRequestRepo));
+publicRouter.post(
+  "/public/provider/join-request",
+  createPostJoinRequestHandler(joinRequestRepo),
+);
 
 export default publicRouter;

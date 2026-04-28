@@ -1,8 +1,8 @@
-import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
-  councilJurisdiction,
   type CouncilJurisdiction,
+  councilJurisdiction,
   type NewCouncilJurisdiction,
 } from "@/persistence/drizzle/entity/council-jurisdiction.entity.ts";
 import type { DrizzleClient } from "@/persistence/drizzle/config.ts";
@@ -16,7 +16,10 @@ export class CouncilJurisdictionRepository extends BaseRepository<
     super(db, councilJurisdiction);
   }
 
-  async findByCountryCode(councilId: string, code: string): Promise<CouncilJurisdiction | undefined> {
+  async findByCountryCode(
+    councilId: string,
+    code: string,
+  ): Promise<CouncilJurisdiction | undefined> {
     const [result] = await this.db
       .select()
       .from(councilJurisdiction)
@@ -31,7 +34,10 @@ export class CouncilJurisdictionRepository extends BaseRepository<
     return result;
   }
 
-  async findDeletedByCountryCode(councilId: string, code: string): Promise<CouncilJurisdiction | undefined> {
+  async findDeletedByCountryCode(
+    councilId: string,
+    code: string,
+  ): Promise<CouncilJurisdiction | undefined> {
     const [result] = await this.db
       .select()
       .from(councilJurisdiction)

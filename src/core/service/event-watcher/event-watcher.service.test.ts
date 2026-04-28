@@ -1,11 +1,12 @@
-import { assertEquals } from "jsr:@std/assert";
-import { xdr, Address, Keypair } from "stellar-sdk";
+import { assertEquals } from "@std/assert";
+import { Address, Keypair, xdr } from "stellar-sdk";
 import { fetchChannelAuthEvents } from "./event-watcher.service.ts";
 import type { Server } from "stellar-sdk/rpc";
 
 const TEST_ADDR_1 = Keypair.random().publicKey();
 const TEST_ADDR_2 = Keypair.random().publicKey();
-const TEST_CONTRACT = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4";
+const TEST_CONTRACT =
+  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4";
 
 // --- Helpers ---
 
@@ -33,6 +34,7 @@ function createMockServer(
   events: ReturnType<typeof buildMockEvent>[],
 ): Server {
   return {
+    // deno-lint-ignore require-await -- mock satisfies Server.getEvents async contract
     getEvents: async () => ({
       events,
       latestLedger: events.length > 0
@@ -145,6 +147,7 @@ Deno.test("fetchChannelAuthEvents - parses multiple events in order", async () =
 
 Deno.test("fetchChannelAuthEvents - skips events with insufficient topics", async () => {
   const mockServer = {
+    // deno-lint-ignore require-await -- mock satisfies Server.getEvents async contract
     getEvents: async () => ({
       events: [
         {

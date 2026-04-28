@@ -6,7 +6,11 @@
  * and call route handlers directly — same pattern as provider-platform.
  */
 
-export type MockResponse = { status: number; body: any; headers: Map<string, string> };
+export type MockResponse = {
+  status: number;
+  body: any;
+  headers: Map<string, string>;
+};
 
 /**
  * Create a mock Oak context for testing route handlers.
@@ -45,17 +49,27 @@ export function createMockContext(opts: {
       body: {
         json: () => {
           if (opts.body === undefined) {
-            return Promise.reject(new SyntaxError("Unexpected end of JSON input"));
+            return Promise.reject(
+              new SyntaxError("Unexpected end of JSON input"),
+            );
           }
           return Promise.resolve(opts.body);
         },
       },
     },
     response: {
-      get status() { return responseStatus; },
-      set status(s: number) { responseStatus = s; },
-      get body() { return responseBody; },
-      set body(b: unknown) { responseBody = b; },
+      get status() {
+        return responseStatus;
+      },
+      set status(s: number) {
+        responseStatus = s;
+      },
+      get body() {
+        return responseBody;
+      },
+      set body(b: unknown) {
+        responseBody = b;
+      },
       headers: {
         set: (key: string, value: string) => responseHeaders.set(key, value),
         get: (key: string) => responseHeaders.get(key),

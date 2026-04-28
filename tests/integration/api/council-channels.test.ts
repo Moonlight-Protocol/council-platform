@@ -3,25 +3,37 @@
  *
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-channels.test.ts
  */
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
-import { resetDb, ensureInitialized, seedChannel, seedCouncilMetadata, ADMIN_KEYPAIR } from "../../test_helpers.ts";
+import {
+  ADMIN_KEYPAIR,
+  ensureInitialized,
+  resetDb,
+  seedChannel,
+  seedCouncilMetadata,
+} from "../../test_helpers.ts";
 
 import {
-  listChannelsHandler,
   addChannelHandler,
-  getChannelHandler,
-  removeChannelHandler,
   enableChannelHandler,
+  getChannelHandler,
+  listChannelsHandler,
   listDisabledChannelsHandler,
+  removeChannelHandler,
 } from "@/http/v1/council/channels.ts";
 
 const adminState = {
-  session: { sub: ADMIN_KEYPAIR.publicKey(), type: "admin", exp: Math.floor(Date.now() / 1000) + 3600 },
+  session: {
+    sub: ADMIN_KEYPAIR.publicKey(),
+    type: "admin",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  },
 };
 
-const TEST_CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4";
-const TEST_CONTRACT_ID_2 = "CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBHK3M";
+const TEST_CONTRACT_ID =
+  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4";
+const TEST_CONTRACT_ID_2 =
+  "CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBHK3M";
 
 // ---------------------------------------------------------------------------
 // GET /council/channels
@@ -34,7 +46,11 @@ Deno.test("GET /council/channels - lists channels", async () => {
 
   await seedChannel({ channelContractId: TEST_CONTRACT_ID, assetCode: "XLM" });
 
-  const { ctx, getResponse } = createMockContext({ method: "GET", query: { councilId: "default" }, state: { ...adminState } });
+  const { ctx, getResponse } = createMockContext({
+    method: "GET",
+    query: { councilId: "default" },
+    state: { ...adminState },
+  });
   await listChannelsHandler(ctx);
 
   const res = getResponse();
@@ -54,7 +70,11 @@ Deno.test("POST /council/channels - adds a channel", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { channelContractId: TEST_CONTRACT_ID, assetCode: "XLM", label: "Test Channel" },
+    body: {
+      channelContractId: TEST_CONTRACT_ID,
+      assetCode: "XLM",
+      label: "Test Channel",
+    },
     query: { councilId: "default" },
     state: { ...adminState },
   });
@@ -258,7 +278,10 @@ Deno.test("POST /council/channels - rejects assetCode over 12 chars", async () =
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { channelContractId: TEST_CONTRACT_ID, assetCode: "TOOLONGASSETCODE" },
+    body: {
+      channelContractId: TEST_CONTRACT_ID,
+      assetCode: "TOOLONGASSETCODE",
+    },
     query: { councilId: "default" },
     state: { ...adminState },
   });
@@ -266,7 +289,10 @@ Deno.test("POST /council/channels - rejects assetCode over 12 chars", async () =
 
   const res = getResponse();
   assertEquals(res.status, 400);
-  assertEquals(res.body.message, "assetCode must be 1-12 alphanumeric characters");
+  assertEquals(
+    res.body.message,
+    "assetCode must be 1-12 alphanumeric characters",
+  );
 });
 
 Deno.test("POST /council/channels - rejects assetCode with special characters", async () => {
@@ -284,7 +310,10 @@ Deno.test("POST /council/channels - rejects assetCode with special characters", 
 
   const res = getResponse();
   assertEquals(res.status, 400);
-  assertEquals(res.body.message, "assetCode must be 1-12 alphanumeric characters");
+  assertEquals(
+    res.body.message,
+    "assetCode must be 1-12 alphanumeric characters",
+  );
 });
 
 Deno.test("POST /council/channels - rejects label over 200 chars", async () => {
@@ -294,7 +323,11 @@ Deno.test("POST /council/channels - rejects label over 200 chars", async () => {
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
-    body: { channelContractId: TEST_CONTRACT_ID, assetCode: "XLM", label: "x".repeat(201) },
+    body: {
+      channelContractId: TEST_CONTRACT_ID,
+      assetCode: "XLM",
+      label: "x".repeat(201),
+    },
     query: { councilId: "default" },
     state: { ...adminState },
   });

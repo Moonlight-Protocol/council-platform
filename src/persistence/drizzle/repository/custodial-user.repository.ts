@@ -1,8 +1,8 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
-  custodialUser,
   type CustodialUser,
+  custodialUser,
   type NewCustodialUser,
 } from "@/persistence/drizzle/entity/custodial-user.entity.ts";
 import type { DrizzleClient } from "@/persistence/drizzle/config.ts";

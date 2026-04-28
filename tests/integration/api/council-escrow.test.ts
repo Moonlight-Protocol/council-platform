@@ -8,24 +8,24 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
 import {
-  resetDb,
+  ADMIN_KEYPAIR,
   ensureInitialized,
+  EscrowStatus,
+  ProviderStatus,
+  resetDb,
   seedCouncilWithRoot,
-  seedProvider,
   seedCustodialUser,
   seedEscrow,
+  seedProvider,
   testAddress,
   testContractId,
-  ADMIN_KEYPAIR,
-  ProviderStatus,
-  EscrowStatus,
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
 import {
+  getEscrowSummaryHandler,
   getRecipientUtxosHandler,
   postEscrowHandler,
-  getEscrowSummaryHandler,
   postEscrowReleaseHandler,
 } from "@/http/v1/council/escrow.ts";
 
@@ -60,7 +60,10 @@ Deno.test("POST /council/escrow - creates escrow with provider JWT", async () =>
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -110,7 +113,10 @@ Deno.test("POST /council/escrow - rejects invalid amount", async () => {
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -128,7 +134,10 @@ Deno.test("POST /council/escrow - rejects invalid amount", async () => {
 
   const res = getResponse();
   assertEquals(res.status, 400);
-  assertEquals(res.body.message, "amount must be a positive integer string (stroops)");
+  assertEquals(
+    res.body.message,
+    "amount must be a positive integer string (stroops)",
+  );
 });
 
 Deno.test("POST /council/escrow - rejects missing fields", async () => {
@@ -136,7 +145,10 @@ Deno.test("POST /council/escrow - rejects missing fields", async () => {
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",
@@ -208,7 +220,11 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=false for 
     method: "GET",
     path: `/council/recipient/${unknownAddr}/utxos`,
     params: { address: unknownAddr },
-    query: { councilId: "default", channelContractId: TEST_CONTRACT_ID, count: "1" },
+    query: {
+      councilId: "default",
+      channelContractId: TEST_CONTRACT_ID,
+      count: "1",
+    },
   });
   await getRecipientUtxosHandler(ctx);
 
@@ -233,7 +249,11 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=true for r
     method: "GET",
     path: `/council/recipient/${userAddr}/utxos`,
     params: { address: userAddr },
-    query: { councilId: "default", channelContractId: TEST_CONTRACT_ID, count: "2" },
+    query: {
+      councilId: "default",
+      channelContractId: TEST_CONTRACT_ID,
+      count: "2",
+    },
   });
   await getRecipientUtxosHandler(ctx);
 
@@ -296,7 +316,10 @@ Deno.test("POST /council/escrow - rejects invalid channelContractId", async () =
   await resetDb();
 
   const providerKp = Keypair.random();
-  await seedProvider({ publicKey: providerKp.publicKey(), status: ProviderStatus.ACTIVE });
+  await seedProvider({
+    publicKey: providerKp.publicKey(),
+    status: ProviderStatus.ACTIVE,
+  });
 
   const { ctx, getResponse } = createMockContext({
     method: "POST",

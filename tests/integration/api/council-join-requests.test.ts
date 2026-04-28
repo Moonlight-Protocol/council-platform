@@ -11,18 +11,17 @@
 import { assertEquals } from "@std/assert";
 import { createMockContext } from "../../test_app.ts";
 import {
-  resetDb,
-  ensureInitialized,
-  seedJoinRequest,
-  seedCouncilMetadata,
   ADMIN_KEYPAIR,
+  ensureInitialized,
   JoinRequestStatus,
+  resetDb,
+  seedCouncilMetadata,
+  seedJoinRequest,
 } from "../../test_helpers.ts";
-import { Keypair } from "stellar-sdk";
 
 import {
-  listJoinRequestsHandler,
   approveJoinRequestHandler,
+  listJoinRequestsHandler,
   rejectJoinRequestHandler,
 } from "@/http/v1/council/join-requests.ts";
 

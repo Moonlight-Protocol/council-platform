@@ -1,8 +1,8 @@
-import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
-  councilChannel,
   type CouncilChannel,
+  councilChannel,
   type NewCouncilChannel,
 } from "@/persistence/drizzle/entity/council-channel.entity.ts";
 import type { DrizzleClient } from "@/persistence/drizzle/config.ts";
@@ -16,7 +16,10 @@ export class CouncilChannelRepository extends BaseRepository<
     super(db, councilChannel);
   }
 
-  async findByContractId(councilId: string, contractId: string): Promise<CouncilChannel | undefined> {
+  async findByContractId(
+    councilId: string,
+    contractId: string,
+  ): Promise<CouncilChannel | undefined> {
     const [result] = await this.db
       .select()
       .from(councilChannel)
@@ -57,7 +60,9 @@ export class CouncilChannelRepository extends BaseRepository<
       .orderBy(councilChannel.createdAt);
   }
 
-  async findByContractIdIncludeDeleted(contractId: string): Promise<CouncilChannel | undefined> {
+  async findByContractIdIncludeDeleted(
+    contractId: string,
+  ): Promise<CouncilChannel | undefined> {
     const [result] = await this.db
       .select()
       .from(councilChannel)
@@ -66,7 +71,9 @@ export class CouncilChannelRepository extends BaseRepository<
     return result;
   }
 
-  async findByIdIncludeDeleted(id: string): Promise<CouncilChannel | undefined> {
+  async findByIdIncludeDeleted(
+    id: string,
+  ): Promise<CouncilChannel | undefined> {
     const [result] = await this.db
       .select()
       .from(councilChannel)
