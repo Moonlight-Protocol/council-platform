@@ -22,7 +22,7 @@ function setCorsHeaders(ctx: Context, origin: string) {
   );
   ctx.response.headers.set(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization",
+    MODE === "development" ? "*" : "Content-Type, Authorization",
   );
   ctx.response.headers.set("Access-Control-Max-Age", "86400");
 }
