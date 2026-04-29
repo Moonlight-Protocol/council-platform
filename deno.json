@@ -1,6 +1,6 @@
 {
   "name": "@moonlight-protocol/council-platform",
-  "version": "0.4.13",
+  "version": "0.4.14",
   "license": "MIT",
   "exports": "./src/main.ts",
   "tasks": {
