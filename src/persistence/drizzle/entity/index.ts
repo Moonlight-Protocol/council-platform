@@ -8,3 +8,4 @@ export * from "@/persistence/drizzle/entity/council-escrow.entity.ts";
 export * from "@/persistence/drizzle/entity/provider-join-request.entity.ts";
 export * from "@/persistence/drizzle/entity/known-asset.entity.ts";
 export * from "@/persistence/drizzle/entity/wallet-user.entity.ts";
+export * from "@/persistence/drizzle/entity/waitlist-request.entity.ts";
