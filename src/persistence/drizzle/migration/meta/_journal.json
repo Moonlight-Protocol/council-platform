@@ -36,6 +36,13 @@
       "when": 1778073633927,
       "tag": "0004_add_waitlist_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779379200000,
+      "tag": "0005_add_provider_jurisdictions",
+      "breakpoints": true
     }
   ]
 }

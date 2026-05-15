@@ -19,6 +19,7 @@ export const councilProvider = pgTable("council_providers", {
   label: text("label"),
   contactEmail: text("contact_email"),
   providerUrl: text("provider_url"),
+  jurisdictions: text("jurisdictions"),
   // Which channel auth event registered this provider
   registeredByEvent: text("registered_by_event"),
   removedByEvent: text("removed_by_event"),
