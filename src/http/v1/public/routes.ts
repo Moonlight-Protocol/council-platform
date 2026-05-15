@@ -73,11 +73,22 @@ async function returnCouncilSummary(ctx: Context, councilId: string) {
         assetContractId: ch.assetContractId,
         label: ch.label,
       })),
-      providers: providers.map((p) => ({
-        publicKey: p.publicKey,
-        label: p.label,
-        providerUrl: p.providerUrl,
-      })),
+      providers: providers.map((p) => {
+        let parsedJurisdictions: string[] | null = null;
+        if (p.jurisdictions) {
+          try {
+            parsedJurisdictions = JSON.parse(p.jurisdictions);
+          } catch {
+            parsedJurisdictions = null;
+          }
+        }
+        return {
+          publicKey: p.publicKey,
+          label: p.label,
+          providerUrl: p.providerUrl,
+          jurisdictions: parsedJurisdictions,
+        };
+      }),
     },
   };
 }
@@ -118,11 +129,22 @@ const listAllCouncils = async (ctx: Context) => {
             assetContractId: ch.assetContractId,
             label: ch.label,
           })),
-          providers: providers.map((p) => ({
-            publicKey: p.publicKey,
-            label: p.label,
-            providerUrl: p.providerUrl,
-          })),
+          providers: providers.map((p) => {
+            let parsedJurisdictions: string[] | null = null;
+            if (p.jurisdictions) {
+              try {
+                parsedJurisdictions = JSON.parse(p.jurisdictions);
+              } catch {
+                parsedJurisdictions = null;
+              }
+            }
+            return {
+              publicKey: p.publicKey,
+              label: p.label,
+              providerUrl: p.providerUrl,
+              jurisdictions: parsedJurisdictions,
+            };
+          }),
         };
       }),
     );
