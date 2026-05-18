@@ -11,11 +11,16 @@ import {
   startEventWatcher,
   stopEventWatcher,
 } from "@/core/service/event-watcher/index.ts";
+import {
+  startNetworkEventsRetention,
+  stopNetworkEventsRetention,
+} from "@/core/service/network-events/retention.process.ts";
 
 async function bootstrap() {
   try {
     // Start watching for Channel Auth contract events
     await startEventWatcher();
+    await startNetworkEventsRetention();
 
     const app = new Application();
 
@@ -31,6 +36,7 @@ async function bootstrap() {
     const shutdown = () => {
       LOG.info("Shutting down server...");
       stopEventWatcher();
+      stopNetworkEventsRetention();
       Deno.exit(0);
     };
 
@@ -43,6 +49,7 @@ async function bootstrap() {
       error: error instanceof Error ? error.message : String(error),
     });
     stopEventWatcher();
+    stopNetworkEventsRetention();
     Deno.exit(1);
   }
 }

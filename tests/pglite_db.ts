@@ -79,7 +79,8 @@ export async function resetDb(): Promise<void> {
       council_metadata,
       known_assets,
       wallet_users,
-      waitlist_requests
+      waitlist_requests,
+      network_events
     CASCADE;
   `);
 }
