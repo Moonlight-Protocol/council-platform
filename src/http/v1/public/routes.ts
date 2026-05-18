@@ -6,6 +6,7 @@ import { CouncilChannelRepository } from "@/persistence/drizzle/repository/counc
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 
 import { createPostJoinRequestHandler } from "@/http/v1/public/join-request.ts";
+import { eventsWsHandler } from "@/http/v1/public/events-ws.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
 import { LOG } from "@/config/logger.ts";
@@ -316,5 +317,8 @@ publicRouter.post(
   "/public/provider/join-request",
   createPostJoinRequestHandler(joinRequestRepo),
 );
+
+// Public WebSocket for the network-dashboard ticker. No JWT — by design.
+publicRouter.get("/public/events/ws", eventsWsHandler);
 
 export default publicRouter;

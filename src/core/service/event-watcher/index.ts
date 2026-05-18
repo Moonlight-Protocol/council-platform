@@ -6,6 +6,7 @@ import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 import { ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
+import { recordAndPublishNetworkEvent } from "@/core/service/network-events/network-events.service.ts";
 
 // Wire env CHALLENGE_TTL (seconds) to council auth (ms)
 setChallengeTtlMs(CHALLENGE_TTL * 1000);
@@ -75,6 +76,32 @@ function makeHandler(councilId: string) {
           LOG.info("Provider registered", {
             councilId,
             address: event.address,
+          });
+        }
+
+        // Surface to the public network-dashboard ticker. Best-effort: a
+        // failure to record/publish must not abort the watcher handler.
+        // `occurredAt` is wall-clock now() rather than the chain ledger
+        // close time — drift is bounded by the watcher polling interval
+        // (DEFAULT_INTERVAL_MS=30s), acceptable for an aggregate ticker.
+        try {
+          const meta = await metadataRepo.getById(councilId);
+          await recordAndPublishNetworkEvent({
+            id: crypto.randomUUID(),
+            kind: "provider_added",
+            councilId,
+            ledger: event.ledger,
+            occurredAt: new Date(),
+            payload: {
+              providerPublicKey: event.address,
+              councilName: meta?.name ?? null,
+            },
+          });
+        } catch (err) {
+          LOG.warn("Failed to record provider_added network event", {
+            councilId,
+            address: event.address,
+            error: err instanceof Error ? err.message : String(err),
           });
         }
         break;
