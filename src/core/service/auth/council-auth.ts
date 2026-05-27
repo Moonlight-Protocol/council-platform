@@ -1,6 +1,6 @@
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 import { withSpan } from "@/core/tracing.ts";
 
 const MAX_PENDING_CHALLENGES = 1000;
@@ -18,7 +18,14 @@ interface PendingChallenge {
 
 const pendingChallenges = new Map<string, PendingChallenge>();
 
-export function createCouncilChallenge(publicKey: string): { nonce: string } {
+export function createCouncilChallenge(
+  publicKey: string,
+  deps: { log: Logger },
+): { nonce: string } {
+  const log = deps.log.scope("createCouncilChallenge");
+  log.info("createCouncilChallenge");
+  log.debug("publicKey", publicKey);
+
   cleanupExpiredChallenges();
   if (pendingChallenges.size >= MAX_PENDING_CHALLENGES) {
     throw new Error("Too many pending challenges. Try again later.");
@@ -26,7 +33,7 @@ export function createCouncilChallenge(publicKey: string): { nonce: string } {
   const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
   const nonce = btoa(String.fromCharCode(...nonceBytes));
   pendingChallenges.set(nonce, { nonce, publicKey, createdAt: Date.now() });
-  LOG.debug("Council challenge created", { publicKey });
+  log.event("council challenge created");
   return { nonce };
 }
 
@@ -39,7 +46,12 @@ export function verifyCouncilChallenge(
   signature: string,
   publicKey: string,
   config: CouncilAuthConfig,
+  deps: { log: Logger },
 ): Promise<{ token: string }> {
+  const log = deps.log.scope("verifyCouncilChallenge");
+  log.info("verifyCouncilChallenge");
+  log.debug("publicKey", publicKey);
+
   return withSpan("CouncilAuth.verify", async (span) => {
     span.addEvent("verifying_challenge", { "signer.publicKey": publicKey });
 
@@ -120,7 +132,7 @@ export function verifyCouncilChallenge(
     ).join("");
     const token = await config.generateToken(publicKey, hashedSessionId);
 
-    LOG.info("Council auth successful", { publicKey });
+    log.event("council auth successful");
     return { token };
   });
 }

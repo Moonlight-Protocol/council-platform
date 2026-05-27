@@ -3,7 +3,7 @@ import { CustodialUserRepository } from "@/persistence/drizzle/repository/custod
 import { CustodialUserStatus } from "@/persistence/drizzle/entity/custodial-user.entity.ts";
 import { deriveP256PublicKey } from "@/core/service/custody/key-derivation.service.ts";
 import { withSpan } from "@/core/tracing.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 const userRepo = new CustodialUserRepository(drizzleClient);
 
@@ -22,11 +22,16 @@ export function registerCustodialUser(opts: {
   externalId: string;
   channelContractId: string;
   providerPublicKey?: string;
-}): Promise<{
+}, deps: { log: Logger }): Promise<{
   userId: string;
   p256PublicKeyHex: string;
 }> {
   const { councilId, externalId, channelContractId, providerPublicKey } = opts;
+  const log = deps.log.scope("registerCustodialUser");
+  log.info("registerCustodialUser");
+  log.debug("councilId", councilId);
+  log.debug("externalId", externalId);
+  log.debug("channelContractId", channelContractId);
 
   return withSpan("Custody.registerUser", async (span) => {
     span.setAttribute("council.id", councilId);
@@ -70,11 +75,8 @@ export function registerCustodialUser(opts: {
     span.setAttribute("user.id", user.id);
     span.setAttribute("user.already_registered", false);
 
-    LOG.info("Custodial user registered", {
-      userId: user.id,
-      externalId,
-      channelContractId,
-    });
+    log.debug("userId", user.id);
+    log.event("custodial user registered");
 
     return {
       userId: user.id,

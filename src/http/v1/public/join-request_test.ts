@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { Keypair } from "stellar-sdk";
 import { createPostJoinRequestHandler } from "./join-request.ts";
+import { newNoop } from "@/utils/logger/index.ts";
 
 const TEST_COUNCIL_ID =
   "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
@@ -8,7 +9,7 @@ const TEST_COUNCIL_ID =
 // Mock repo — validation tests never reach the DB calls
 // deno-lint-ignore no-explicit-any
 const mockRepo = {} as any;
-const handler = createPostJoinRequestHandler(mockRepo);
+const handler = createPostJoinRequestHandler(mockRepo, { log: newNoop() });
 
 // deno-lint-ignore no-explicit-any
 function createMockContext(body: unknown): any {

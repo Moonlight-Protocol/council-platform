@@ -11,7 +11,7 @@ import {
   ProviderStatus,
 } from "@/persistence/drizzle/entity/council-provider.entity.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
@@ -53,49 +53,56 @@ function formatJoinRequest(r: {
  * GET /council/provider-requests?councilId=...
  * Lists join requests for a council. Optional ?status= filter. Max 100 results.
  */
-export const listJoinRequestsHandler = async (ctx: Context) => {
-  try {
-    const councilId = ctx.request.url.searchParams.get("councilId");
-    if (!councilId) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "councilId query parameter is required" };
-      return;
+export function handleListJoinRequests(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("listJoinRequests");
+
+  return async (ctx) => {
+    log.info("listJoinRequests");
+    try {
+      const councilId = ctx.request.url.searchParams.get("councilId");
+      if (!councilId) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message: "councilId query parameter is required",
+        };
+        return;
+      }
+
+      // Verify ownership
+      const ownerPublicKey = (ctx.state.session as { sub: string }).sub;
+      const council = await metadataRepo.getByIdAndOwner(
+        councilId,
+        ownerPublicKey,
+      );
+      if (!council) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "Council not found" };
+        return;
+      }
+
+      const statusFilter = ctx.request.url.searchParams.get("status");
+
+      let requests;
+      if (statusFilter === "PENDING") {
+        requests = await joinRequestRepo.listPending(councilId);
+      } else {
+        requests = await joinRequestRepo.listAll(councilId);
+      }
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Join requests retrieved",
+        data: requests.map(formatJoinRequest),
+      };
+    } catch (error) {
+      log.error(error, "failed to list join requests");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve join requests" };
     }
-
-    // Verify ownership
-    const ownerPublicKey = (ctx.state.session as { sub: string }).sub;
-    const council = await metadataRepo.getByIdAndOwner(
-      councilId,
-      ownerPublicKey,
-    );
-    if (!council) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: "Council not found" };
-      return;
-    }
-
-    const statusFilter = ctx.request.url.searchParams.get("status");
-
-    let requests;
-    if (statusFilter === "PENDING") {
-      requests = await joinRequestRepo.listPending(councilId);
-    } else {
-      requests = await joinRequestRepo.listAll(councilId);
-    }
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Join requests retrieved",
-      data: requests.map(formatJoinRequest),
-    };
-  } catch (error) {
-    LOG.error("Failed to list join requests", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve join requests" };
-  }
-};
+  };
+}
 
 type RouteParams = { id?: string };
 
@@ -105,225 +112,243 @@ type RouteParams = { id?: string };
  * Returns the council config and callback endpoint so the client can
  * sign and push the config to the PP directly.
  */
-export const approveJoinRequestHandler = async (ctx: Context) => {
-  try {
-    const params = (ctx as unknown as { params?: RouteParams }).params;
-    const id = params?.id;
+export function handleApproveJoinRequest(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("approveJoinRequest");
 
-    if (!id) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Request ID is required" };
-      return;
-    }
+  return async (ctx) => {
+    log.info("approveJoinRequest");
+    try {
+      const params = (ctx as unknown as { params?: RouteParams }).params;
+      const id = params?.id;
 
-    const adminPublicKey = (ctx.state.session as { sub: string }).sub;
+      if (!id) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Request ID is required" };
+        return;
+      }
+      log.debug("id", id);
 
-    // Verify the request's council is owned by this admin
-    const requestRow = await joinRequestRepo.findById(id);
-    if (!requestRow) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: "Join request not found" };
-      return;
-    }
-    const council = await metadataRepo.getByIdAndOwner(
-      requestRow.councilId,
-      adminPublicKey,
-    );
-    if (!council) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: "Join request not found" };
-      return;
-    }
+      const adminPublicKey = (ctx.state.session as { sub: string }).sub;
 
-    // Atomic read-check-update inside a transaction with row lock.
-    // SELECT ... FOR UPDATE prevents concurrent approvals of the same request.
-    const request = await drizzleClient.transaction(async (tx) => {
-      const [row] = await tx
-        .select()
-        .from(providerJoinRequest)
-        .where(
-          and(
-            eq(providerJoinRequest.id, id),
-            isNull(providerJoinRequest.deletedAt),
-          ),
-        )
-        .for("update")
-        .limit(1);
+      // Verify the request's council is owned by this admin
+      const requestRow = await joinRequestRepo.findById(id);
+      if (!requestRow) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "Join request not found" };
+        return;
+      }
+      const council = await metadataRepo.getByIdAndOwner(
+        requestRow.councilId,
+        adminPublicKey,
+      );
+      if (!council) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "Join request not found" };
+        return;
+      }
 
-      if (!row) return null;
-      if (row.status !== JoinRequestStatus.PENDING) return row;
+      // Atomic read-check-update inside a transaction with row lock.
+      // SELECT ... FOR UPDATE prevents concurrent approvals of the same request.
+      const request = await drizzleClient.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(providerJoinRequest)
+          .where(
+            and(
+              eq(providerJoinRequest.id, id),
+              isNull(providerJoinRequest.deletedAt),
+            ),
+          )
+          .for("update")
+          .limit(1);
 
-      // Update request status
-      await tx
-        .update(providerJoinRequest)
-        .set({
+        if (!row) return null;
+        if (row.status !== JoinRequestStatus.PENDING) return row;
+
+        // Update request status
+        await tx
+          .update(providerJoinRequest)
+          .set({
+            status: JoinRequestStatus.APPROVED,
+            reviewedAt: new Date(),
+            reviewedBy: adminPublicKey,
+            updatedAt: new Date(),
+          })
+          .where(eq(providerJoinRequest.id, id));
+
+        // Create provider record if not exists for this council
+        const [existing] = await tx
+          .select()
+          .from(councilProvider)
+          .where(
+            and(
+              eq(councilProvider.councilId, row.councilId),
+              eq(councilProvider.publicKey, row.publicKey),
+            ),
+          )
+          .limit(1);
+
+        if (!existing) {
+          await tx.insert(councilProvider).values({
+            id: crypto.randomUUID(),
+            councilId: row.councilId,
+            publicKey: row.publicKey,
+            status: ProviderStatus.ACTIVE,
+            label: row.label,
+            contactEmail: row.contactEmail,
+            providerUrl: row.providerUrl,
+            jurisdictions: row.jurisdictions,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+
+        return {
+          ...row,
           status: JoinRequestStatus.APPROVED,
           reviewedAt: new Date(),
           reviewedBy: adminPublicKey,
-          updatedAt: new Date(),
-        })
-        .where(eq(providerJoinRequest.id, id));
+        };
+      });
 
-      // Create provider record if not exists for this council
-      const [existing] = await tx
-        .select()
-        .from(councilProvider)
-        .where(
-          and(
-            eq(councilProvider.councilId, row.councilId),
-            eq(councilProvider.publicKey, row.publicKey),
-          ),
-        )
-        .limit(1);
-
-      if (!existing) {
-        await tx.insert(councilProvider).values({
-          id: crypto.randomUUID(),
-          councilId: row.councilId,
-          publicKey: row.publicKey,
-          status: ProviderStatus.ACTIVE,
-          label: row.label,
-          contactEmail: row.contactEmail,
-          providerUrl: row.providerUrl,
-          jurisdictions: row.jurisdictions,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
+      if (!request) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "Join request not found" };
+        return;
       }
 
-      return {
-        ...row,
-        status: JoinRequestStatus.APPROVED,
-        reviewedAt: new Date(),
-        reviewedBy: adminPublicKey,
+      if (request.status !== JoinRequestStatus.APPROVED) {
+        ctx.response.status = Status.Conflict;
+        ctx.response.body = {
+          message: `Request is already ${request.status}`,
+        };
+        return;
+      }
+
+      log.debug("providerKey", request.publicKey);
+      log.event("join request approved");
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Join request approved",
+        data: formatJoinRequest({
+          ...request,
+          status: JoinRequestStatus.APPROVED,
+          reviewedAt: new Date(),
+          reviewedBy: adminPublicKey,
+        }),
       };
-    });
-
-    if (!request) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: "Join request not found" };
-      return;
+    } catch (error) {
+      log.error(error, "failed to approve join request");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to approve join request" };
     }
-
-    if (request.status !== JoinRequestStatus.APPROVED) {
-      ctx.response.status = Status.Conflict;
-      ctx.response.body = { message: `Request is already ${request.status}` };
-      return;
-    }
-
-    LOG.info("Join request approved", { id, providerKey: request.publicKey });
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Join request approved",
-      data: formatJoinRequest({
-        ...request,
-        status: JoinRequestStatus.APPROVED,
-        reviewedAt: new Date(),
-        reviewedBy: adminPublicKey,
-      }),
-    };
-  } catch (error) {
-    LOG.error("Failed to approve join request", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to approve join request" };
-  }
-};
+  };
+}
 
 /**
  * POST /council/provider-requests/:id/reject
  * Rejects a join request. Stays visible in the list with REJECTED status.
  */
-export const rejectJoinRequestHandler = async (ctx: Context) => {
-  try {
-    const params = (ctx as unknown as { params?: RouteParams }).params;
-    const id = params?.id;
+export function handleRejectJoinRequest(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("rejectJoinRequest");
 
-    if (!id) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Request ID is required" };
-      return;
-    }
+  return async (ctx) => {
+    log.info("rejectJoinRequest");
+    try {
+      const params = (ctx as unknown as { params?: RouteParams }).params;
+      const id = params?.id;
 
-    const adminPublicKey = (ctx.state.session as { sub: string }).sub;
+      if (!id) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Request ID is required" };
+        return;
+      }
+      log.debug("id", id);
 
-    // Verify the request's council is owned by this admin
-    const rejectRequestRow = await joinRequestRepo.findById(id);
-    if (!rejectRequestRow) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: "Join request not found" };
-      return;
-    }
-    const rejectCouncil = await metadataRepo.getByIdAndOwner(
-      rejectRequestRow.councilId,
-      adminPublicKey,
-    );
-    if (!rejectCouncil) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: "Join request not found" };
-      return;
-    }
+      const adminPublicKey = (ctx.state.session as { sub: string }).sub;
 
-    const request = await drizzleClient.transaction(async (tx) => {
-      const [row] = await tx
-        .select()
-        .from(providerJoinRequest)
-        .where(
-          and(
-            eq(providerJoinRequest.id, id),
-            isNull(providerJoinRequest.deletedAt),
-          ),
-        )
-        .for("update")
-        .limit(1);
+      // Verify the request's council is owned by this admin
+      const rejectRequestRow = await joinRequestRepo.findById(id);
+      if (!rejectRequestRow) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "Join request not found" };
+        return;
+      }
+      const rejectCouncil = await metadataRepo.getByIdAndOwner(
+        rejectRequestRow.councilId,
+        adminPublicKey,
+      );
+      if (!rejectCouncil) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "Join request not found" };
+        return;
+      }
 
-      if (!row) return null;
-      if (row.status !== JoinRequestStatus.PENDING) return row;
+      const request = await drizzleClient.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(providerJoinRequest)
+          .where(
+            and(
+              eq(providerJoinRequest.id, id),
+              isNull(providerJoinRequest.deletedAt),
+            ),
+          )
+          .for("update")
+          .limit(1);
 
-      await tx
-        .update(providerJoinRequest)
-        .set({
+        if (!row) return null;
+        if (row.status !== JoinRequestStatus.PENDING) return row;
+
+        await tx
+          .update(providerJoinRequest)
+          .set({
+            status: JoinRequestStatus.REJECTED,
+            reviewedAt: new Date(),
+            reviewedBy: adminPublicKey,
+            updatedAt: new Date(),
+          })
+          .where(eq(providerJoinRequest.id, id));
+
+        return {
+          ...row,
           status: JoinRequestStatus.REJECTED,
           reviewedAt: new Date(),
           reviewedBy: adminPublicKey,
-          updatedAt: new Date(),
-        })
-        .where(eq(providerJoinRequest.id, id));
+        };
+      });
 
-      return {
-        ...row,
-        status: JoinRequestStatus.REJECTED,
-        reviewedAt: new Date(),
-        reviewedBy: adminPublicKey,
+      if (!request) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: "Join request not found" };
+        return;
+      }
+
+      if (request.status !== JoinRequestStatus.REJECTED) {
+        ctx.response.status = Status.Conflict;
+        ctx.response.body = {
+          message: `Request is already ${request.status}`,
+        };
+        return;
+      }
+
+      log.debug("providerKey", request.publicKey);
+      log.event("join request rejected");
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Join request rejected",
+        data: formatJoinRequest(request),
       };
-    });
-
-    if (!request) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: "Join request not found" };
-      return;
+    } catch (error) {
+      log.error(error, "failed to reject join request");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to reject join request" };
     }
-
-    if (request.status !== JoinRequestStatus.REJECTED) {
-      ctx.response.status = Status.Conflict;
-      ctx.response.body = { message: `Request is already ${request.status}` };
-      return;
-    }
-
-    LOG.info("Join request rejected", { id, providerKey: request.publicKey });
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Join request rejected",
-      data: formatJoinRequest(request),
-    };
-  } catch (error) {
-    LOG.error("Failed to reject join request", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to reject join request" };
-  }
-};
+  };
+}

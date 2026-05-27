@@ -1,6 +1,6 @@
 import { NETWORK_RPC_SERVER } from "@/config/env.ts";
 import { withSpan } from "@/core/tracing.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 export interface ChannelOnChainState {
   totalDeposited: bigint | null;
@@ -18,7 +18,12 @@ export interface ChannelOnChainState {
  */
 export function queryChannelState(
   channelContractId: string,
+  deps: { log: Logger },
 ): Promise<ChannelOnChainState> {
+  const log = deps.log.scope("queryChannelState");
+  log.info("queryChannelState");
+  log.debug("channelContractId", channelContractId);
+
   return withSpan("Channel.queryState", async (span) => {
     span.setAttribute("channel.contract_id", channelContractId);
     try {
@@ -35,9 +40,7 @@ export function queryChannelState(
         ledgerSequence: ledger.sequence,
       };
     } catch (error) {
-      LOG.error("Failed to query channel state from RPC", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      log.error(error, "failed to query channel state from RPC");
       throw new Error("Failed to query channel on-chain state");
     }
   });
