@@ -46,138 +46,146 @@ export function buildCouncilRouter(deps: { log: Logger }): Router {
   const councilRouter = new Router();
 
   // Councils
-  councilRouter.get("/council/list", jwtMiddleware, handleListCouncils(deps));
+  councilRouter.get(
+    "/council/list",
+    jwtMiddleware(deps),
+    handleListCouncils(deps),
+  );
   councilRouter.get(
     "/council/metadata",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleGetMetadata(deps),
   );
   councilRouter.put(
     "/council/metadata",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handlePutMetadata(deps),
   );
   councilRouter.delete(
     "/council/metadata",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleDeleteMetadata(deps),
   );
 
   // Jurisdictions (admin-only)
   councilRouter.get(
     "/council/jurisdictions",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleListJurisdictions(deps),
   );
   councilRouter.post(
     "/council/jurisdictions",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleAddJurisdiction(deps),
   );
   councilRouter.delete(
     "/council/jurisdictions/:code",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleRemoveJurisdiction(deps),
   );
 
   // Channels (admin-only) — static routes before parameterized
   councilRouter.get(
     "/council/channels",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleListChannels(deps),
   );
   councilRouter.post(
     "/council/channels",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleAddChannel(deps),
   );
   councilRouter.get(
     "/council/channels/disabled",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleListDisabledChannels(deps),
   );
   councilRouter.get(
     "/council/channels/:id",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleGetChannel(deps),
   );
   councilRouter.delete(
     "/council/channels/:id",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleRemoveChannel(deps),
   );
   councilRouter.post(
     "/council/channels/:id/enable",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleEnableChannel(deps),
   );
 
   // Join requests (admin-only)
   councilRouter.get(
     "/council/provider-requests",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleListJoinRequests(deps),
   );
   councilRouter.post(
     "/council/provider-requests/:id/approve",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleApproveJoinRequest(deps),
   );
   councilRouter.post(
     "/council/provider-requests/:id/reject",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleRejectJoinRequest(deps),
   );
 
   // Providers (admin-only)
   councilRouter.get(
     "/council/providers",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleListProviders(deps),
   );
   councilRouter.get(
     "/council/providers/:id",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleGetProvider(deps),
   );
   councilRouter.put(
     "/council/providers/:id",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleUpdateProvider(deps),
   );
 
   // Signing API (provider JWT — validated internally)
   councilRouter.post(
     "/council/sign/register",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handlePostRegisterUser(deps),
   );
   councilRouter.post(
     "/council/sign/keys",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handlePostGetKeys(deps),
   );
   councilRouter.post(
     "/council/sign/spend",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handlePostSignSpend(deps),
   );
 
   // Escrow (provider JWT for create/lookup, admin for release)
   councilRouter.get(
     "/council/recipient/:address/utxos",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleGetRecipientUtxos(deps),
   );
-  councilRouter.post("/council/escrow", jwtMiddleware, handlePostEscrow(deps));
+  councilRouter.post(
+    "/council/escrow",
+    jwtMiddleware(deps),
+    handlePostEscrow(deps),
+  );
   councilRouter.get(
     "/council/escrow/:address",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handleGetEscrowSummary(deps),
   );
   councilRouter.post(
     "/council/escrow/:address/release",
-    jwtMiddleware,
+    jwtMiddleware(deps),
     handlePostEscrowRelease(deps),
   );
 
