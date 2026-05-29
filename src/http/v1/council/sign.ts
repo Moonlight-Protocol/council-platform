@@ -178,6 +178,7 @@ export function handlePostGetKeys(
         externalId,
         channelContractId,
         indices,
+        deps,
       );
 
       ctx.response.status = Status.OK;
@@ -328,6 +329,7 @@ export function handlePostSignSpend(
           externalId,
           utxoIndex,
           messageBytes,
+          deps,
         );
         signatures.push(bytesToHex(signature));
       }

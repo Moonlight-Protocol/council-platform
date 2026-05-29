@@ -7,6 +7,7 @@
  * This module is designed to be copied into provider-platform's codebase
  * or published as a shared package.
  */
+import type { Logger } from "@/utils/logger/index.ts";
 
 export interface CouncilClientConfig {
   baseUrl: string;
@@ -27,13 +28,16 @@ export interface SignSpendRequest {
 export class CouncilClient {
   private baseUrl: string;
   private token: string;
+  private log: Logger;
 
-  constructor(config: CouncilClientConfig) {
+  constructor(config: CouncilClientConfig, deps: { log: Logger }) {
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.token = config.providerToken;
+    this.log = deps.log.scope("CouncilClient");
   }
 
   updateToken(token: string): void {
+    this.log.info("updateToken");
     this.token = token;
   }
 
@@ -42,7 +46,13 @@ export class CouncilClient {
     path: string,
     body?: unknown,
   ): Promise<T> {
+    const log = this.log.scope("request");
+    log.info("request");
+    log.debug("method", method);
+    log.debug("path", path);
+
     const url = `${this.baseUrl}/api/v1${path}`;
+    log.event("sending HTTP request");
     const response = await fetch(url, {
       method,
       headers: {
@@ -52,12 +62,15 @@ export class CouncilClient {
       body: body ? JSON.stringify(body) : undefined,
     });
 
+    log.debug("status", response.status);
     const json = await response.json();
 
     if (!response.ok) {
-      throw new Error(
+      const err = new Error(
         json.message ?? `Council API error: ${response.status}`,
       );
+      log.error(err, "council API returned non-2xx");
+      throw err;
     }
 
     return json.data as T;
@@ -172,10 +185,15 @@ export class CouncilClient {
     baseUrl: string,
     publicKey: string,
     signChallenge: (nonce: string) => Promise<string>,
+    deps: { log: Logger },
   ): Promise<string> {
+    const log = deps.log.scope("CouncilClient.authenticate");
+    log.info("authenticate");
+    log.debug("publicKey", publicKey);
+
     const base = baseUrl.replace(/\/+$/, "");
 
-    // Step 1: Request challenge
+    log.event("requesting auth challenge");
     const challengeRes = await fetch(`${base}/api/v1/provider/auth/challenge`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -183,11 +201,15 @@ export class CouncilClient {
     });
     const challengeJson = await challengeRes.json();
     if (!challengeRes.ok) {
-      throw new Error(challengeJson.message ?? "Failed to create challenge");
+      const err = new Error(
+        challengeJson.message ?? "Failed to create challenge",
+      );
+      log.error(err, "challenge request failed");
+      throw err;
     }
     const nonce = challengeJson.data.nonce;
 
-    // Step 2: Sign and verify
+    log.event("signing and verifying challenge");
     const signature = await signChallenge(nonce);
     const verifyRes = await fetch(`${base}/api/v1/provider/auth/verify`, {
       method: "POST",
@@ -196,9 +218,12 @@ export class CouncilClient {
     });
     const verifyJson = await verifyRes.json();
     if (!verifyRes.ok) {
-      throw new Error(verifyJson.message ?? "Authentication failed");
+      const err = new Error(verifyJson.message ?? "Authentication failed");
+      log.error(err, "verify request failed");
+      throw err;
     }
 
+    log.event("authenticated successfully");
     return verifyJson.data.token;
   }
 }

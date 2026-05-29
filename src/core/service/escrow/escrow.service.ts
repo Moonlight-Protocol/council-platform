@@ -25,13 +25,21 @@ export function getRecipientUtxos(
   councilId: string,
   recipientAddress: string,
   channelContractId: string,
-  count: number = 1,
+  count: number,
+  deps: { log: Logger },
 ): Promise<{ registered: boolean; publicKeys: string[] }> {
   return withSpan("Escrow.getRecipientUtxos", async (span) => {
+    const log = deps.log.scope("getRecipientUtxos");
+    log.info("getRecipientUtxos");
+    log.debug("councilId", councilId);
+    log.debug("recipientAddress", recipientAddress);
+    log.debug("count", count);
+
     span.setAttribute("council.id", councilId);
     span.setAttribute("channel.contract_id", channelContractId);
     span.setAttribute("utxo.count", count);
 
+    log.event("looking up custodial user");
     const user = await userRepo.findByExternalIdAndChannel(
       recipientAddress,
       channelContractId,
@@ -39,12 +47,12 @@ export function getRecipientUtxos(
 
     if (!user || user.status !== CustodialUserStatus.ACTIVE) {
       span.setAttribute("user.registered", false);
+      log.event("recipient not registered");
       return { registered: false, publicKeys: [] };
     }
 
     span.setAttribute("user.registered", true);
-
-    // Derive requested number of public keys
+    log.event("deriving recipient public keys");
     const publicKeys: string[] = [];
     for (let i = 0; i < Math.min(count, 300); i++) {
       const pk = await deriveP256PublicKey(
@@ -52,10 +60,12 @@ export function getRecipientUtxos(
         channelContractId,
         recipientAddress,
         i,
+        deps,
       );
       publicKeys.push(bytesToHex(pk));
     }
 
+    log.debug("keysDerived", publicKeys.length);
     return { registered: true, publicKeys };
   });
 }
@@ -114,7 +124,10 @@ export function createEscrow(opts: {
 /**
  * Get escrow summary for a recipient.
  */
-export function getEscrowSummary(recipientAddress: string): Promise<{
+export function getEscrowSummary(
+  recipientAddress: string,
+  deps: { log: Logger },
+): Promise<{
   pendingCount: number;
   pendingTotal: bigint;
   escrows: Array<{
@@ -126,10 +139,16 @@ export function getEscrowSummary(recipientAddress: string): Promise<{
   }>;
 }> {
   return withSpan("Escrow.getSummary", async (span) => {
+    const log = deps.log.scope("getEscrowSummary");
+    log.info("getEscrowSummary");
+    log.debug("recipientAddress", recipientAddress);
+
+    log.event("fetching held escrows");
     const held = await escrowRepo.findHeldForRecipient(recipientAddress);
     const pendingTotal = held.reduce((sum, e) => sum + e.amount, 0n);
     span.setAttribute("escrow.pending_count", held.length);
     span.setAttribute("escrow.pending_total", pendingTotal.toString());
+    log.debug("pendingCount", held.length);
 
     return {
       pendingCount: held.length,

@@ -69,6 +69,7 @@ export function handleGetRecipientUtxos(
         address,
         channelContractId,
         count,
+        deps,
       );
 
       ctx.response.status = Status.OK;
@@ -216,7 +217,7 @@ export function handleGetEscrowSummary(
         return;
       }
 
-      const summary = await getEscrowSummary(address);
+      const summary = await getEscrowSummary(address, deps);
 
       ctx.response.status = Status.OK;
       ctx.response.body = {

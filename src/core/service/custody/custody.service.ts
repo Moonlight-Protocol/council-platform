@@ -57,6 +57,7 @@ export function registerCustodialUser(opts: {
       channelContractId,
       externalId,
       0,
+      deps,
     );
     const p256PublicKeyHex = bytesToHex(publicKey);
 
@@ -98,12 +99,19 @@ export function getUserPublicKeys(
   externalId: string,
   channelContractId: string,
   indices: number[],
+  deps: { log: Logger },
 ): Promise<string[]> {
   return withSpan("Custody.getUserPublicKeys", async (span) => {
+    const log = deps.log.scope("getUserPublicKeys");
+    log.info("getUserPublicKeys");
+    log.debug("externalId", externalId);
+    log.debug("indexCount", indices.length);
+
     span.setAttribute("council.id", councilId);
     span.setAttribute("channel.contract_id", channelContractId);
     span.setAttribute("indices.count", indices.length);
 
+    log.event("looking up custodial user");
     const user = await userRepo.findByExternalIdAndChannel(
       externalId,
       channelContractId,
@@ -116,6 +124,7 @@ export function getUserPublicKeys(
       throw new Error("User account is suspended");
     }
 
+    log.event("deriving requested public keys");
     const publicKeys: string[] = [];
     for (const index of indices) {
       if (index < 0 || index >= 300) {
@@ -126,6 +135,7 @@ export function getUserPublicKeys(
         channelContractId,
         externalId,
         index,
+        deps,
       );
       publicKeys.push(bytesToHex(pk));
     }

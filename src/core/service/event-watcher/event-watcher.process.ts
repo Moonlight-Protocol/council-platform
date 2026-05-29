@@ -122,6 +122,7 @@ export class EventWatcher {
           NETWORK_RPC_SERVER,
           this.config.contractId,
           this.lastLedger,
+          { log: this.log },
         );
 
         if (events.length > 0) {
