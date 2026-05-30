@@ -84,6 +84,9 @@ export class CouncilClient {
     externalId: string,
     channelContractId: string,
   ): Promise<RegisterUserResult> {
+    this.log.info("registerUser");
+    this.log.debug("externalId", externalId);
+    this.log.debug("channelContractId", channelContractId);
     return this.request<RegisterUserResult>("POST", "/council/sign/register", {
       externalId,
       channelContractId,
@@ -98,6 +101,9 @@ export class CouncilClient {
     channelContractId: string,
     indices: number[],
   ): Promise<string[]> {
+    this.log.info("getKeys");
+    this.log.debug("externalId", externalId);
+    this.log.debug("indexCount", indices.length);
     const result = await this.request<{ publicKeys: string[] }>(
       "POST",
       "/council/sign/keys",
@@ -114,6 +120,9 @@ export class CouncilClient {
     channelContractId: string,
     spends: SignSpendRequest[],
   ): Promise<string[]> {
+    this.log.info("signSpends");
+    this.log.debug("channelContractId", channelContractId);
+    this.log.debug("spendCount", spends.length);
     const result = await this.request<{ signatures: string[] }>(
       "POST",
       "/council/sign/spend",
@@ -132,6 +141,9 @@ export class CouncilClient {
     channelContractId: string,
     count: number = 1,
   ): Promise<{ registered: boolean; publicKeys: string[] }> {
+    this.log.info("checkRecipientUtxos");
+    this.log.debug("recipientAddress", recipientAddress);
+    this.log.debug("count", count);
     return this.request<{ registered: boolean; publicKeys: string[] }>(
       "GET",
       `/council/recipient/${
@@ -152,6 +164,9 @@ export class CouncilClient {
     assetCode: string;
     channelContractId: string;
   }): Promise<{ escrowId: string }> {
+    this.log.info("createEscrow");
+    this.log.debug("recipientAddress", opts.recipientAddress);
+    this.log.debug("amount", opts.amount);
     return this.request<{ escrowId: string }>("POST", "/council/escrow", opts);
   }
 
@@ -171,6 +186,8 @@ export class CouncilClient {
       createdAt: string;
     }>;
   }> {
+    this.log.info("getEscrowSummary");
+    this.log.debug("recipientAddress", recipientAddress);
     return this.request(
       "GET",
       `/council/escrow/${encodeURIComponent(recipientAddress)}`,

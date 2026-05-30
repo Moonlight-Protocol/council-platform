@@ -12,11 +12,20 @@ import type { Logger } from "@/utils/logger/index.ts";
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 /** Loads and decrypts a council's derivation root. Throws if the council doesn't exist. */
-async function loadDerivationRoot(councilId: string): Promise<Uint8Array> {
+async function loadDerivationRoot(
+  councilId: string,
+  deps: { log: Logger },
+): Promise<Uint8Array> {
+  const log = deps.log.scope("loadDerivationRoot");
+  log.info("loadDerivationRoot");
+  log.debug("councilId", councilId);
+
+  log.event("looking up council metadata");
   const council = await metadataRepo.getById(councilId);
   if (!council) {
     throw new Error(`Council not found: ${councilId}`);
   }
+  log.event("decrypting derivation root");
   return decryptSecret(council.encryptedDerivationRoot, SERVICE_AUTH_SECRET);
 }
 
@@ -58,7 +67,7 @@ export function deriveP256Keypair(
 
     const context = `${NETWORK}${channelContractId}`;
     log.event("loading derivation root");
-    const rootBytes = await loadDerivationRoot(councilId);
+    const rootBytes = await loadDerivationRoot(councilId, deps);
     const root = btoa(String.fromCharCode(...rootBytes));
     // Index = user external ID + ":" + UTXO index
     const index = `${userExternalId}:${utxoIndex}`;

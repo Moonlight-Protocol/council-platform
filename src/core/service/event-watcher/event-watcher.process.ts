@@ -104,12 +104,14 @@ export class EventWatcher {
   }
 
   private async scheduleNext(): Promise<void> {
+    this.log.info("scheduleNext");
     await this.poll();
     if (this.isRunning) {
       this.timeoutId = setTimeout(
         () => this.scheduleNext(),
         this.config.intervalMs,
       ) as unknown as number;
+      this.log.event("next poll scheduled");
     }
   }
 

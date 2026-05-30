@@ -26,7 +26,7 @@ export function createCouncilChallenge(
   log.info("createCouncilChallenge");
   log.debug("publicKey", publicKey);
 
-  cleanupExpiredChallenges();
+  cleanupExpiredChallenges(deps);
   if (pendingChallenges.size >= MAX_PENDING_CHALLENGES) {
     throw new Error("Too many pending challenges. Try again later.");
   }
@@ -137,11 +137,16 @@ export function verifyCouncilChallenge(
   });
 }
 
-function cleanupExpiredChallenges(): void {
+function cleanupExpiredChallenges(deps: { log: Logger }): void {
+  const log = deps.log.scope("cleanupExpiredChallenges");
+  log.info("cleanupExpiredChallenges");
   const now = Date.now();
+  let removed = 0;
   for (const [nonce, challenge] of pendingChallenges) {
     if (now - challenge.createdAt > challengeTtlMs) {
       pendingChallenges.delete(nonce);
+      removed++;
     }
   }
+  log.debug("removed", removed);
 }

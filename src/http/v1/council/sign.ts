@@ -43,13 +43,25 @@ function hexToBytes(hex: string): Uint8Array {
 async function validateProviderSession(
   councilId: string,
   session: JwtSessionData,
+  deps: { log: Logger },
 ): Promise<string | null> {
+  const log = deps.log.scope("validateProviderSession");
+  log.info("validateProviderSession");
+  log.debug("councilId", councilId);
+  log.debug("providerPublicKey", session.sub);
+
+  log.event("looking up provider record");
   const provider = await providerRepo.findByPublicKey(councilId, session.sub);
-  if (!provider) return "Provider not registered with this council";
+  if (!provider) {
+    log.event("provider not registered");
+    return "Provider not registered with this council";
+  }
   if (provider.status !== ProviderStatus.ACTIVE) {
+    log.event("provider not active");
     return "Provider is not active";
   }
 
+  log.event("provider session valid");
   return null;
 }
 
@@ -81,7 +93,11 @@ export function handlePostRegisterUser(
         return;
       }
 
-      const providerError = await validateProviderSession(councilId, session);
+      const providerError = await validateProviderSession(
+        councilId,
+        session,
+        deps,
+      );
       if (providerError) {
         ctx.response.status = Status.Forbidden;
         ctx.response.body = { message: providerError };
@@ -152,7 +168,11 @@ export function handlePostGetKeys(
         return;
       }
 
-      const providerError = await validateProviderSession(councilId, session);
+      const providerError = await validateProviderSession(
+        councilId,
+        session,
+        deps,
+      );
       if (providerError) {
         ctx.response.status = Status.Forbidden;
         ctx.response.body = { message: providerError };
@@ -234,7 +254,11 @@ export function handlePostSignSpend(
         return;
       }
 
-      const providerError = await validateProviderSession(councilId, session);
+      const providerError = await validateProviderSession(
+        councilId,
+        session,
+        deps,
+      );
       if (providerError) {
         ctx.response.status = Status.Forbidden;
         ctx.response.body = { message: providerError };
