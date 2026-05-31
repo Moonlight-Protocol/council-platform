@@ -19,7 +19,16 @@ function getCouncilId(ctx: Context): string | null {
   return ctx.request.url.searchParams.get("councilId");
 }
 
-async function returnCouncilSummary(ctx: Context, councilId: string) {
+async function returnCouncilSummary(
+  ctx: Context,
+  councilId: string,
+  deps: { log: Logger },
+) {
+  const log = deps.log.scope("returnCouncilSummary");
+  log.info("returnCouncilSummary");
+  log.debug("councilId", councilId);
+
+  log.event("loading council metadata + jurisdictions + channels + providers");
   const [metadata, jurisdictions, channels, providers] = await Promise.all([
     metadataRepo.getById(councilId),
     jurisdictionRepo.listAll(councilId),
@@ -86,7 +95,7 @@ export function buildPublicRouter(deps: { log: Logger }): Router {
         };
         return;
       }
-      await returnCouncilSummary(ctx, councilId);
+      await returnCouncilSummary(ctx, councilId, deps);
     } catch (error) {
       log.error(error, "failed to get council summary");
       ctx.response.status = Status.InternalServerError;
