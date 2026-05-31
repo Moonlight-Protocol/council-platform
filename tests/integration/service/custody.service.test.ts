@@ -136,7 +136,10 @@ Deno.test("getUserPublicKeys - throws for unregistered user", async () => {
   await setupCouncil();
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, "nonexistent-user", CONTRACT_ID, [0], { log: newNoop() }),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, "nonexistent-user", CONTRACT_ID, [0], {
+        log: newNoop(),
+      }),
     Error,
     "User not registered for this channel",
   );
@@ -153,7 +156,10 @@ Deno.test("getUserPublicKeys - throws for suspended user", async () => {
   });
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0], { log: newNoop() }),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0], {
+        log: newNoop(),
+      }),
     Error,
     "User account is suspended",
   );
@@ -170,13 +176,19 @@ Deno.test("getUserPublicKeys - throws for out-of-range indices", async () => {
   }, { log: newNoop() });
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [300], { log: newNoop() }),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [300], {
+        log: newNoop(),
+      }),
     Error,
     "out of range",
   );
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [-1], { log: newNoop() }),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [-1], {
+        log: newNoop(),
+      }),
     Error,
     "out of range",
   );

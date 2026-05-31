@@ -154,7 +154,9 @@ Deno.test("getRecipientUtxos - returns registered=true with public keys for regi
     status: CustodialUserStatus.ACTIVE,
   });
 
-  const result = await getRecipientUtxos(COUNCIL_ID, externalId, channelId, 2, { log: newNoop() });
+  const result = await getRecipientUtxos(COUNCIL_ID, externalId, channelId, 2, {
+    log: newNoop(),
+  });
   assertEquals(result.registered, true);
   assertEquals(result.publicKeys.length, 2);
 
@@ -194,7 +196,9 @@ Deno.test("releaseEscrowsForRecipient - marks escrows as RELEASED and deducts fe
     status: EscrowStatus.HELD,
   });
 
-  const result = await releaseEscrowsForRecipient(recipient, channelId, { log: newNoop() });
+  const result = await releaseEscrowsForRecipient(recipient, channelId, {
+    log: newNoop(),
+  });
 
   assertEquals(result.released, 2);
   assertEquals(result.totalFees, DEFAULT_ESCROW_FEE * 2n);
@@ -223,7 +227,9 @@ Deno.test("releaseEscrowsForRecipient - returns 0 when no held escrows exist", a
     status: CustodialUserStatus.ACTIVE,
   });
 
-  const result = await releaseEscrowsForRecipient(recipient, channelId, { log: newNoop() });
+  const result = await releaseEscrowsForRecipient(recipient, channelId, {
+    log: newNoop(),
+  });
   assertEquals(result.released, 0);
   assertEquals(result.totalReleased, 0n);
   assertEquals(result.totalFees, 0n);
