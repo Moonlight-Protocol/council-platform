@@ -15,6 +15,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/provider-auth.test.ts
  */
 import { assertEquals, assertExists } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import {
   ensureInitialized,
   ProviderStatus,
@@ -61,7 +62,7 @@ Deno.test("provider auth - challenge returns a nonce for a valid Stellar key", a
   await resetDb();
 
   const pk = Keypair.random().publicKey();
-  const { nonce } = createCouncilChallenge(pk);
+  const { nonce } = createCouncilChallenge(pk, { log: newNoop() });
 
   assertExists(nonce);
   assertEquals(typeof nonce, "string");
@@ -101,15 +102,13 @@ Deno.test("provider auth - verify succeeds for a registered ACTIVE provider", as
   assertEquals(provider.status, ProviderStatus.ACTIVE);
 
   // Challenge + verify (use self-signer config so Horizon is not needed)
-  const { nonce } = createCouncilChallenge(pk);
+  const { nonce } = createCouncilChallenge(pk, { log: newNoop() });
   const signature = signNonceRaw(providerKp, nonce);
 
-  const { token } = await verifyCouncilChallenge(
-    nonce,
+  const { token } = await verifyCouncilChallenge(nonce,
     signature,
     pk,
-    authConfig(),
-  );
+    authConfig(), { log: newNoop() });
 
   assertExists(token);
   assertEquals(typeof token, "string");
@@ -130,7 +129,7 @@ Deno.test("provider auth - verify blocks unregistered provider before signature 
   const pk = unregisteredKp.publicKey();
 
   // Issue a real challenge and sign it correctly
-  const { nonce } = createCouncilChallenge(pk);
+  const { nonce } = createCouncilChallenge(pk, { log: newNoop() });
   const signature = signNonceRaw(unregisteredKp, nonce);
 
   // The handler checks provider status BEFORE calling verifyCouncilChallenge.
@@ -141,12 +140,10 @@ Deno.test("provider auth - verify blocks unregistered provider before signature 
 
   // Even though the signature is valid, the handler never reaches verification.
   // Verify the signature IS valid (proving the block is authorization, not crypto).
-  const { token } = await verifyCouncilChallenge(
-    nonce,
+  const { token } = await verifyCouncilChallenge(nonce,
     signature,
     pk,
-    authConfig(),
-  );
+    authConfig(), { log: newNoop() });
   assertExists(token);
 });
 
@@ -164,7 +161,7 @@ Deno.test("provider auth - verify blocks REMOVED provider before signature check
   await seedProvider({ publicKey: pk, status: ProviderStatus.REMOVED });
 
   // Issue a real challenge and sign it correctly
-  const { nonce } = createCouncilChallenge(pk);
+  const { nonce } = createCouncilChallenge(pk, { log: newNoop() });
   const signature = signNonceRaw(removedKp, nonce);
 
   // Handler checks: if (!provider || provider.status !== ProviderStatus.ACTIVE)
@@ -174,12 +171,10 @@ Deno.test("provider auth - verify blocks REMOVED provider before signature check
   assertEquals(provider.status, ProviderStatus.REMOVED);
 
   // Signature is valid — the block is purely an authorization check
-  const { token } = await verifyCouncilChallenge(
-    nonce,
+  const { token } = await verifyCouncilChallenge(nonce,
     signature,
     pk,
-    authConfig(),
-  );
+    authConfig(), { log: newNoop() });
   assertExists(token);
 });
 
@@ -202,7 +197,7 @@ Deno.test("provider auth - verifyCouncilChallenge rejects a nonce that was never
   let threw = false;
   let errorMsg = "";
   try {
-    await verifyCouncilChallenge(fakeNonce, signature, pk, authConfig());
+    await verifyCouncilChallenge(fakeNonce, signature, pk, authConfig(), { log: newNoop() });
   } catch (e) {
     threw = true;
     errorMsg = e instanceof Error ? e.message : String(e);
@@ -218,7 +213,9 @@ Deno.test("provider auth - verifyCouncilChallenge rejects mismatched publicKey",
   const kp2 = Keypair.random();
 
   // Issue challenge for kp1
-  const { nonce } = createCouncilChallenge(kp1.publicKey());
+  const { nonce } = createCouncilChallenge(kp1.publicKey(), {
+    log: newNoop(),
+  });
 
   // Try to verify with kp2's publicKey (mismatch)
   const signature = signNonceRaw(kp2, nonce);
@@ -230,8 +227,7 @@ Deno.test("provider auth - verifyCouncilChallenge rejects mismatched publicKey",
       nonce,
       signature,
       kp2.publicKey(),
-      authConfig(),
-    );
+      authConfig(), { log: newNoop() });
   } catch (e) {
     threw = true;
     errorMsg = e instanceof Error ? e.message : String(e);
@@ -246,13 +242,13 @@ Deno.test("provider auth - verifyCouncilChallenge rejects an invalid signature",
   const kp = Keypair.random();
   const pk = kp.publicKey();
 
-  const { nonce } = createCouncilChallenge(pk);
+  const { nonce } = createCouncilChallenge(pk, { log: newNoop() });
   const badSignature = Buffer.from("not-a-real-signature").toString("base64");
 
   let threw = false;
   let errorMsg = "";
   try {
-    await verifyCouncilChallenge(nonce, badSignature, pk, authConfig());
+    await verifyCouncilChallenge(nonce, badSignature, pk, authConfig(), { log: newNoop() });
   } catch (e) {
     threw = true;
     errorMsg = e instanceof Error ? e.message : String(e);

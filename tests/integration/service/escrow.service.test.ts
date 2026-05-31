@@ -4,6 +4,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/service/escrow.service.test.ts
  */
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import {
   CustodialUserStatus,
   ensureInitialized,
@@ -52,7 +53,7 @@ Deno.test("createEscrow - creates a HELD escrow record", async () => {
     assetCode: "XLM",
     channelContractId: channelId,
     submittedByProvider: provider,
-  });
+  }, { log: newNoop() });
 
   assertExists(escrowId);
 
@@ -79,7 +80,7 @@ Deno.test("createEscrow - rejects zero amount", async () => {
         assetCode: "XLM",
         channelContractId: testContractId(),
         submittedByProvider: Keypair.random().publicKey(),
-      }),
+      }, { log: newNoop() }),
     Error,
     "Amount must be positive",
   );
@@ -109,7 +110,7 @@ Deno.test("getEscrowSummary - returns correct count and total for held escrows",
     status: EscrowStatus.RELEASED,
   });
 
-  const summary = await getEscrowSummary(recipient);
+  const summary = await getEscrowSummary(recipient, { log: newNoop() });
   assertEquals(summary.pendingCount, 2);
   assertEquals(summary.pendingTotal, 8_000_000n);
   assertEquals(summary.escrows.length, 2);
@@ -119,7 +120,7 @@ Deno.test("getEscrowSummary - returns 0 for address with no escrows", async () =
   await ensureInitialized();
   await resetDb();
 
-  const summary = await getEscrowSummary(testAddress());
+  const summary = await getEscrowSummary(testAddress(), { log: newNoop() });
   assertEquals(summary.pendingCount, 0);
   assertEquals(summary.pendingTotal, 0n);
   assertEquals(summary.escrows.length, 0);
@@ -135,6 +136,7 @@ Deno.test("getRecipientUtxos - returns registered=false for unregistered user", 
     testAddress(),
     testContractId(),
     1,
+    { log: newNoop() },
   );
   assertEquals(result.registered, false);
   assertEquals(result.publicKeys.length, 0);
@@ -152,7 +154,7 @@ Deno.test("getRecipientUtxos - returns registered=true with public keys for regi
     status: CustodialUserStatus.ACTIVE,
   });
 
-  const result = await getRecipientUtxos(COUNCIL_ID, externalId, channelId, 2);
+  const result = await getRecipientUtxos(COUNCIL_ID, externalId, channelId, 2, { log: newNoop() });
   assertEquals(result.registered, true);
   assertEquals(result.publicKeys.length, 2);
 
@@ -192,7 +194,7 @@ Deno.test("releaseEscrowsForRecipient - marks escrows as RELEASED and deducts fe
     status: EscrowStatus.HELD,
   });
 
-  const result = await releaseEscrowsForRecipient(recipient, channelId);
+  const result = await releaseEscrowsForRecipient(recipient, channelId, { log: newNoop() });
 
   assertEquals(result.released, 2);
   assertEquals(result.totalFees, DEFAULT_ESCROW_FEE * 2n);
@@ -221,7 +223,7 @@ Deno.test("releaseEscrowsForRecipient - returns 0 when no held escrows exist", a
     status: CustodialUserStatus.ACTIVE,
   });
 
-  const result = await releaseEscrowsForRecipient(recipient, channelId);
+  const result = await releaseEscrowsForRecipient(recipient, channelId, { log: newNoop() });
   assertEquals(result.released, 0);
   assertEquals(result.totalReleased, 0n);
   assertEquals(result.totalFees, 0n);
@@ -242,7 +244,7 @@ Deno.test("releaseEscrowsForRecipient - throws for unregistered recipient", asyn
   });
 
   await assertRejects(
-    () => releaseEscrowsForRecipient(recipient, channelId),
+    () => releaseEscrowsForRecipient(recipient, channelId, { log: newNoop() }),
     Error,
     "Recipient is not registered or not active",
   );

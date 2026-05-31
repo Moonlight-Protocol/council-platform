@@ -9,6 +9,7 @@ import { createWalletJwt } from "../../test_jwt.ts";
 
 import { corsMiddleware } from "@/http/middleware/cors.ts";
 import { jwtMiddleware } from "@/http/middleware/auth/index.ts";
+import { newNoop } from "@/utils/logger/index.ts";
 
 // ---------------------------------------------------------------------------
 // CORS middleware
@@ -154,7 +155,7 @@ Deno.test("jwtMiddleware - rejects missing Authorization header", async () => {
   const { ctx, getResponse } = createMockContext({ method: "GET" });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware(ctx, async () => {
+  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
     nextCalled = true;
   });
 
@@ -171,7 +172,7 @@ Deno.test("jwtMiddleware - rejects invalid Authorization format", async () => {
   });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware(ctx, async () => {
+  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
     nextCalled = true;
   });
 
@@ -188,7 +189,7 @@ Deno.test("jwtMiddleware - rejects invalid JWT token", async () => {
   });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware(ctx, async () => {
+  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
     nextCalled = true;
   });
 
@@ -206,7 +207,7 @@ Deno.test("jwtMiddleware - accepts valid wallet JWT and sets session", async () 
   });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware(ctx, async () => {
+  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
     nextCalled = true;
   });
 

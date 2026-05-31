@@ -20,14 +20,18 @@ import {
 } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 
-import publicRouter from "@/http/v1/public/routes.ts";
+import { buildPublicRouter } from "@/http/v1/public/routes.ts";
+import { newNoop } from "@/utils/logger/index.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { drizzleClient } from "../../test_helpers.ts";
 const { createPostJoinRequestHandler } = await import(
   "@/http/v1/public/join-request.ts"
 );
 const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
-const joinRequestHandler = createPostJoinRequestHandler(joinRequestRepo);
+const joinRequestHandler = createPostJoinRequestHandler(joinRequestRepo, {
+  log: newNoop(),
+});
+const publicRouter = buildPublicRouter({ log: newNoop() });
 
 // ---------------------------------------------------------------------------
 // Route registration

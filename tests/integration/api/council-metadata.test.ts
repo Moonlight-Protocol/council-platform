@@ -4,6 +4,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-metadata.test.ts
  */
 import { assertEquals } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { Keypair } from "stellar-sdk";
 import { createMockContext } from "../../test_app.ts";
 import {
@@ -14,9 +15,9 @@ import {
 } from "../../test_helpers.ts";
 
 import {
-  deleteMetadataHandler,
-  getMetadataHandler,
-  putMetadataHandler,
+  handleDeleteMetadata,
+  handleGetMetadata,
+  handlePutMetadata,
 } from "@/http/v1/council/metadata.ts";
 
 // Admin session state (simulates successful JWT middleware)
@@ -42,7 +43,7 @@ Deno.test("GET /council/metadata - returns 404 when no metadata exists", async (
     state: { ...adminState },
   });
 
-  await getMetadataHandler(ctx);
+  await handleGetMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);
@@ -60,7 +61,7 @@ Deno.test("GET /council/metadata - returns existing metadata", async () => {
     state: { ...adminState },
   });
 
-  await getMetadataHandler(ctx);
+  await handleGetMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -88,7 +89,7 @@ Deno.test("PUT /council/metadata - updates metadata", async () => {
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -108,7 +109,7 @@ Deno.test("PUT /council/metadata - rejects missing name", async () => {
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -125,7 +126,7 @@ Deno.test("PUT /council/metadata - rejects name over 200 chars", async () => {
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -147,7 +148,7 @@ Deno.test("PUT /council/metadata - partial upsert preserves existing fields", as
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -176,7 +177,7 @@ Deno.test("PUT /council/metadata - sets councilPublicKey from session sub", asyn
     },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -193,7 +194,7 @@ Deno.test("PUT /council/metadata - creates record when none exists", async () =>
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -211,7 +212,7 @@ Deno.test("PUT /council/metadata - rejects malformed JSON", async () => {
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -229,7 +230,7 @@ Deno.test("PUT /council/metadata - rejects description over 2000 chars", async (
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -247,7 +248,7 @@ Deno.test("PUT /council/metadata - rejects contactEmail over 200 chars", async (
     state: { ...adminState },
   });
 
-  await putMetadataHandler(ctx);
+  await handlePutMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -269,7 +270,7 @@ Deno.test("DELETE /council/metadata - deletes all council data", async () => {
     state: { ...adminState },
   });
 
-  await deleteMetadataHandler(ctx);
+  await handleDeleteMetadata({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);

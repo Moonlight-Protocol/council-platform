@@ -9,6 +9,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-join-requests.test.ts
  */
 import { assertEquals } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { createMockContext } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
@@ -20,9 +21,9 @@ import {
 } from "../../test_helpers.ts";
 
 import {
-  approveJoinRequestHandler,
-  listJoinRequestsHandler,
-  rejectJoinRequestHandler,
+  handleApproveJoinRequest,
+  handleListJoinRequests,
+  handleRejectJoinRequest,
 } from "@/http/v1/council/join-requests.ts";
 
 const adminState = {
@@ -52,7 +53,7 @@ Deno.test("GET /council/provider-requests - lists all join requests", async () =
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await listJoinRequestsHandler(ctx);
+  await handleListJoinRequests({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -74,7 +75,7 @@ Deno.test("GET /council/provider-requests?status=PENDING - filters pending", asy
     query: { status: "PENDING", councilId: "default" },
     state: { ...adminState },
   });
-  await listJoinRequestsHandler(ctx);
+  await handleListJoinRequests({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -101,7 +102,7 @@ Deno.test("POST /council/provider-requests/:id/reject - rejects a pending reques
     params: { id: request.id },
     state: { ...adminState },
   });
-  await rejectJoinRequestHandler(ctx);
+  await handleRejectJoinRequest({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -119,7 +120,7 @@ Deno.test("POST /council/provider-requests/:id/reject - returns 404 for non-exis
     params: { id: "non-existent" },
     state: { ...adminState },
   });
-  await rejectJoinRequestHandler(ctx);
+  await handleRejectJoinRequest({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);
@@ -139,7 +140,7 @@ Deno.test("POST /council/provider-requests/:id/reject - returns 409 for already 
     params: { id: request.id },
     state: { ...adminState },
   });
-  await rejectJoinRequestHandler(ctx);
+  await handleRejectJoinRequest({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 409);
@@ -160,7 +161,7 @@ Deno.test("POST /council/provider-requests/:id/approve - returns 404 for non-exi
     params: { id: "non-existent" },
     state: { ...adminState },
   });
-  await approveJoinRequestHandler(ctx);
+  await handleApproveJoinRequest({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);
@@ -180,7 +181,7 @@ Deno.test("POST /council/provider-requests/:id/approve - returns 409 for already
     params: { id: request.id },
     state: { ...adminState },
   });
-  await approveJoinRequestHandler(ctx);
+  await handleApproveJoinRequest({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 409);

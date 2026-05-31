@@ -4,6 +4,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-channels.test.ts
  */
 import { assertEquals } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { createMockContext } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
@@ -14,12 +15,12 @@ import {
 } from "../../test_helpers.ts";
 
 import {
-  addChannelHandler,
-  enableChannelHandler,
-  getChannelHandler,
-  listChannelsHandler,
-  listDisabledChannelsHandler,
-  removeChannelHandler,
+  handleAddChannel,
+  handleEnableChannel,
+  handleGetChannel,
+  handleListChannels,
+  handleListDisabledChannels,
+  handleRemoveChannel,
 } from "@/http/v1/council/channels.ts";
 
 const adminState = {
@@ -51,7 +52,7 @@ Deno.test("GET /council/channels - lists channels", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await listChannelsHandler(ctx);
+  await handleListChannels({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -78,7 +79,7 @@ Deno.test("POST /council/channels - adds a channel", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -98,7 +99,7 @@ Deno.test("POST /council/channels - rejects invalid contract ID", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -118,7 +119,7 @@ Deno.test("POST /council/channels - rejects duplicate contract ID", async () => 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 409);
@@ -135,7 +136,7 @@ Deno.test("POST /council/channels - rejects missing assetCode", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -158,7 +159,7 @@ Deno.test("GET /council/channels/:id - returns channel with state", async () => 
     params: { id: channel.id },
     state: { ...adminState },
   });
-  await getChannelHandler(ctx);
+  await handleGetChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -173,7 +174,7 @@ Deno.test("GET /council/channels/:id - returns 404 for non-existent", async () =
     params: { id: "non-existent-id" },
     state: { ...adminState },
   });
-  await getChannelHandler(ctx);
+  await handleGetChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);
@@ -195,7 +196,7 @@ Deno.test("DELETE /council/channels/:id - disables channel", async () => {
     params: { id: channel.id },
     state: { ...adminState },
   });
-  await removeChannelHandler(ctx);
+  await handleRemoveChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -219,7 +220,7 @@ Deno.test("POST /council/channels/:id/enable - re-enables disabled channel", asy
     params: { id: channel.id },
     state: { ...adminState },
   });
-  await removeChannelHandler(disableCtx.ctx);
+  await handleRemoveChannel({ log: newNoop() })(disableCtx.ctx);
 
   // Then re-enable
   const { ctx, getResponse } = createMockContext({
@@ -227,7 +228,7 @@ Deno.test("POST /council/channels/:id/enable - re-enables disabled channel", asy
     params: { id: channel.id },
     state: { ...adminState },
   });
-  await enableChannelHandler(ctx);
+  await handleEnableChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -252,14 +253,14 @@ Deno.test("GET /council/channels/disabled - lists disabled channels", async () =
     params: { id: ch.id },
     state: { ...adminState },
   });
-  await removeChannelHandler(disableCtx.ctx);
+  await handleRemoveChannel({ log: newNoop() })(disableCtx.ctx);
 
   const { ctx, getResponse } = createMockContext({
     method: "GET",
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await listDisabledChannelsHandler(ctx);
+  await handleListDisabledChannels({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -285,7 +286,7 @@ Deno.test("POST /council/channels - rejects assetCode over 12 chars", async () =
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -306,7 +307,7 @@ Deno.test("POST /council/channels - rejects assetCode with special characters", 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -331,7 +332,7 @@ Deno.test("POST /council/channels - rejects label over 200 chars", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -349,7 +350,7 @@ Deno.test("POST /council/channels - rejects malformed JSON", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addChannelHandler(ctx);
+  await handleAddChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -371,7 +372,7 @@ Deno.test("POST /council/channels/:id/enable - returns 404 for active channel", 
     params: { id: channel.id },
     state: { ...adminState },
   });
-  await enableChannelHandler(ctx);
+  await handleEnableChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);
