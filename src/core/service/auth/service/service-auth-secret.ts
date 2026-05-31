@@ -14,9 +14,8 @@ if (!SERVICE_AUTH_SECRET || SERVICE_AUTH_SECRET.trim().length === 0) {
       "SERVICE_AUTH_SECRET must be set and non-empty in production. A random secret would invalidate all JWTs on restart.",
     );
   }
-  console.warn(
-    "WARNING: SERVICE_AUTH_SECRET is not set. Generating a random secret. This is NOT recommended for production environments.",
-  );
+  // Dev mode: a random secret is generated below. main.ts emits an event
+  // when bootstrap detects this so the logger can carry the notice.
 }
 
 export const authSecret = SERVICE_AUTH_SECRET || generateSecret();

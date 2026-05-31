@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import { Address, Keypair, xdr } from "stellar-sdk";
 import { fetchChannelAuthEvents } from "./event-watcher.service.ts";
 import type { Server } from "stellar-sdk/rpc";
+import { newNoop } from "@/utils/logger/index.ts";
 
 const TEST_ADDR_1 = Keypair.random().publicKey();
 const TEST_ADDR_2 = Keypair.random().publicKey();
@@ -55,6 +56,7 @@ Deno.test("fetchChannelAuthEvents - parses provider_added event", async () => {
     mockServer,
     TEST_CONTRACT,
     900,
+    { log: newNoop() },
   );
 
   assertEquals(events.length, 1);
@@ -73,6 +75,7 @@ Deno.test("fetchChannelAuthEvents - parses provider_removed event", async () => 
     mockServer,
     TEST_CONTRACT,
     1900,
+    { log: newNoop() },
   );
 
   assertEquals(events.length, 1);
@@ -89,6 +92,7 @@ Deno.test("fetchChannelAuthEvents - parses contract_initialized event", async ()
     mockServer,
     TEST_CONTRACT,
     400,
+    { log: newNoop() },
   );
 
   assertEquals(events.length, 1);
@@ -105,6 +109,7 @@ Deno.test("fetchChannelAuthEvents - ignores unknown event topics", async () => {
     mockServer,
     TEST_CONTRACT,
     900,
+    { log: newNoop() },
   );
 
   assertEquals(events.length, 0);
@@ -117,6 +122,7 @@ Deno.test("fetchChannelAuthEvents - handles empty response", async () => {
     mockServer,
     TEST_CONTRACT,
     900,
+    { log: newNoop() },
   );
 
   assertEquals(events.length, 0);
@@ -134,6 +140,7 @@ Deno.test("fetchChannelAuthEvents - parses multiple events in order", async () =
     mockServer,
     TEST_CONTRACT,
     900,
+    { log: newNoop() },
   );
 
   assertEquals(events.length, 3);
@@ -169,6 +176,7 @@ Deno.test("fetchChannelAuthEvents - skips events with insufficient topics", asyn
     mockServer,
     TEST_CONTRACT,
     900,
+    { log: newNoop() },
   );
 
   assertEquals(events.length, 0);

@@ -1,4 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { Keypair } from "stellar-sdk";
 import {
   type CouncilAuthConfig,
@@ -56,14 +57,18 @@ async function signNonceSep43(
 }
 
 Deno.test("createCouncilChallenge - returns a nonce", () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   assertEquals(typeof nonce, "string");
   assertEquals(nonce.length > 0, true);
 });
 
 Deno.test("createCouncilChallenge - returns unique nonces", () => {
-  const { nonce: nonce1 } = createCouncilChallenge(TEST_PUBLIC_KEY);
-  const { nonce: nonce2 } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce: nonce1 } = createCouncilChallenge(TEST_PUBLIC_KEY, {
+    log: newNoop(),
+  });
+  const { nonce: nonce2 } = createCouncilChallenge(TEST_PUBLIC_KEY, {
+    log: newNoop(),
+  });
   assertEquals(nonce1 !== nonce2, true);
 });
 
@@ -75,6 +80,7 @@ Deno.test("verifyCouncilChallenge - rejects unknown nonce", async () => {
         "sig",
         TEST_PUBLIC_KEY,
         AUTH_CONFIG,
+        { log: newNoop() },
       ),
     Error,
     "Challenge not found",
@@ -82,18 +88,21 @@ Deno.test("verifyCouncilChallenge - rejects unknown nonce", async () => {
 });
 
 Deno.test("verifyCouncilChallenge - rejects wrong public key", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const otherKey = Keypair.random().publicKey();
 
   await assertRejects(
-    () => verifyCouncilChallenge(nonce, "sig", otherKey, AUTH_CONFIG),
+    () =>
+      verifyCouncilChallenge(nonce, "sig", otherKey, AUTH_CONFIG, {
+        log: newNoop(),
+      }),
     Error,
     "Public key mismatch",
   );
 });
 
 Deno.test("verifyCouncilChallenge - rejects short invalid signature", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const badSig = btoa("too-short");
 
   await assertRejects(
@@ -103,6 +112,7 @@ Deno.test("verifyCouncilChallenge - rejects short invalid signature", async () =
         badSig,
         TEST_PUBLIC_KEY,
         AUTH_CONFIG,
+        { log: newNoop() },
       ),
     Error,
     "Invalid signature",
@@ -110,7 +120,7 @@ Deno.test("verifyCouncilChallenge - rejects short invalid signature", async () =
 });
 
 Deno.test("verifyCouncilChallenge - rejects valid-length but wrong signature", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const wrongSig = signNonce(Keypair.random(), nonce);
 
   await assertRejects(
@@ -120,6 +130,7 @@ Deno.test("verifyCouncilChallenge - rejects valid-length but wrong signature", a
         wrongSig,
         TEST_PUBLIC_KEY,
         AUTH_CONFIG,
+        { log: newNoop() },
       ),
     Error,
     "Invalid signature",
@@ -127,7 +138,7 @@ Deno.test("verifyCouncilChallenge - rejects valid-length but wrong signature", a
 });
 
 Deno.test("verifyCouncilChallenge - valid raw signature + self signer = success", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const signature = signNonce(TEST_KEYPAIR, nonce);
 
   const { token } = await verifyCouncilChallenge(
@@ -135,6 +146,7 @@ Deno.test("verifyCouncilChallenge - valid raw signature + self signer = success"
     signature,
     TEST_PUBLIC_KEY,
     AUTH_CONFIG,
+    { log: newNoop() },
   );
 
   assertEquals(typeof token, "string");
@@ -146,7 +158,7 @@ Deno.test("verifyCouncilChallenge - valid signature with different keypair pair 
   // Test with a completely different keypair to confirm.
   const otherKeypair = Keypair.random();
   const otherPk = otherKeypair.publicKey();
-  const { nonce } = createCouncilChallenge(otherPk);
+  const { nonce } = createCouncilChallenge(otherPk, { log: newNoop() });
   const signature = signNonce(otherKeypair, nonce);
 
   const { token } = await verifyCouncilChallenge(
@@ -154,6 +166,7 @@ Deno.test("verifyCouncilChallenge - valid signature with different keypair pair 
     signature,
     otherPk,
     AUTH_CONFIG,
+    { log: newNoop() },
   );
 
   assertEquals(typeof token, "string");
@@ -161,7 +174,7 @@ Deno.test("verifyCouncilChallenge - valid signature with different keypair pair 
 });
 
 Deno.test("verifyCouncilChallenge - SEP-53 hex signature + self signer = success", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const signature = await signNonceSep53(TEST_KEYPAIR, nonce);
 
   const { token } = await verifyCouncilChallenge(
@@ -169,6 +182,7 @@ Deno.test("verifyCouncilChallenge - SEP-53 hex signature + self signer = success
     signature,
     TEST_PUBLIC_KEY,
     AUTH_CONFIG,
+    { log: newNoop() },
   );
 
   assertEquals(typeof token, "string");
@@ -176,7 +190,7 @@ Deno.test("verifyCouncilChallenge - SEP-53 hex signature + self signer = success
 });
 
 Deno.test("verifyCouncilChallenge - SEP-53 wrong key rejected", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const signature = await signNonceSep53(Keypair.random(), nonce);
 
   await assertRejects(
@@ -186,6 +200,7 @@ Deno.test("verifyCouncilChallenge - SEP-53 wrong key rejected", async () => {
         signature,
         TEST_PUBLIC_KEY,
         AUTH_CONFIG,
+        { log: newNoop() },
       ),
     Error,
     "Invalid signature",
@@ -193,7 +208,7 @@ Deno.test("verifyCouncilChallenge - SEP-53 wrong key rejected", async () => {
 });
 
 Deno.test("verifyCouncilChallenge - SEP-43 signature + self signer = success", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const signature = await signNonceSep43(TEST_KEYPAIR, nonce);
 
   const { token } = await verifyCouncilChallenge(
@@ -201,6 +216,7 @@ Deno.test("verifyCouncilChallenge - SEP-43 signature + self signer = success", a
     signature,
     TEST_PUBLIC_KEY,
     AUTH_CONFIG,
+    { log: newNoop() },
   );
 
   assertEquals(typeof token, "string");
@@ -208,7 +224,7 @@ Deno.test("verifyCouncilChallenge - SEP-43 signature + self signer = success", a
 });
 
 Deno.test("verifyCouncilChallenge - nonce is consumed after use", async () => {
-  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY);
+  const { nonce } = createCouncilChallenge(TEST_PUBLIC_KEY, { log: newNoop() });
   const signature = signNonce(TEST_KEYPAIR, nonce);
 
   // First use succeeds
@@ -217,6 +233,7 @@ Deno.test("verifyCouncilChallenge - nonce is consumed after use", async () => {
     signature,
     TEST_PUBLIC_KEY,
     AUTH_CONFIG,
+    { log: newNoop() },
   );
 
   // Second use fails
@@ -227,6 +244,7 @@ Deno.test("verifyCouncilChallenge - nonce is consumed after use", async () => {
         signature,
         TEST_PUBLIC_KEY,
         AUTH_CONFIG,
+        { log: newNoop() },
       ),
     Error,
     "Challenge not found",

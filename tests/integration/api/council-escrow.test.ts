@@ -6,6 +6,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-escrow.test.ts
  */
 import { assertEquals, assertExists } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { createMockContext } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
@@ -23,10 +24,10 @@ import {
 import { Keypair } from "stellar-sdk";
 
 import {
-  getEscrowSummaryHandler,
-  getRecipientUtxosHandler,
-  postEscrowHandler,
-  postEscrowReleaseHandler,
+  handleGetEscrowSummary,
+  handleGetRecipientUtxos,
+  handlePostEscrow,
+  handlePostEscrowRelease,
 } from "@/http/v1/council/escrow.ts";
 
 const TEST_CONTRACT_ID = testContractId();
@@ -77,7 +78,7 @@ Deno.test("POST /council/escrow - creates escrow with provider JWT", async () =>
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postEscrowHandler(ctx);
+  await handlePostEscrow({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -101,7 +102,7 @@ Deno.test("POST /council/escrow - rejects non-provider JWT", async () => {
     },
     state: adminState(),
   });
-  await postEscrowHandler(ctx);
+  await handlePostEscrow({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 403);
@@ -130,7 +131,7 @@ Deno.test("POST /council/escrow - rejects invalid amount", async () => {
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postEscrowHandler(ctx);
+  await handlePostEscrow({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -162,7 +163,7 @@ Deno.test("POST /council/escrow - rejects missing fields", async () => {
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postEscrowHandler(ctx);
+  await handlePostEscrow({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -195,7 +196,7 @@ Deno.test("GET /council/escrow/:address - returns escrow summary", async () => {
     params: { address: recipientAddr },
     state: adminState(),
   });
-  await getEscrowSummaryHandler(ctx);
+  await handleGetEscrowSummary({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -226,7 +227,7 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=false for 
       count: "1",
     },
   });
-  await getRecipientUtxosHandler(ctx);
+  await handleGetRecipientUtxos({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -255,7 +256,7 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=true for r
       count: "2",
     },
   });
-  await getRecipientUtxosHandler(ctx);
+  await handleGetRecipientUtxos({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -300,7 +301,7 @@ Deno.test("POST /council/escrow/:address/release - releases held escrows", async
     body: { channelContractId: TEST_CONTRACT_ID },
     state: adminState(),
   });
-  await postEscrowReleaseHandler(ctx);
+  await handlePostEscrowRelease({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -333,7 +334,7 @@ Deno.test("POST /council/escrow - rejects invalid channelContractId", async () =
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postEscrowHandler(ctx);
+  await handlePostEscrow({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -353,7 +354,7 @@ Deno.test("POST /council/escrow/:address/release - rejects invalid channelContra
     body: { channelContractId: "bad" },
     state: adminState(),
   });
-  await postEscrowReleaseHandler(ctx);
+  await handlePostEscrowRelease({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);

@@ -8,7 +8,7 @@ import { CouncilProviderRepository } from "@/persistence/drizzle/repository/coun
 import { createPostJoinRequestHandler } from "@/http/v1/public/join-request.ts";
 import { ProviderJoinRequestRepository } from "@/persistence/drizzle/repository/provider-join-request.repository.ts";
 import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-asset.repository.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 const jurisdictionRepo = new CouncilJurisdictionRepository(drizzleClient);
@@ -19,30 +19,16 @@ function getCouncilId(ctx: Context): string | null {
   return ctx.request.url.searchParams.get("councilId");
 }
 
-/**
- * GET /public/council?councilId=...
- * Read-only council summary.
- * No auth required.
- */
-const getCouncilSummary = async (ctx: Context) => {
-  try {
-    const councilId = getCouncilId(ctx);
-    if (!councilId) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "councilId query parameter is required" };
-      return;
-    }
-    await returnCouncilSummary(ctx, councilId);
-  } catch (error) {
-    LOG.error("Failed to get council summary", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve council summary" };
-  }
-};
+async function returnCouncilSummary(
+  ctx: Context,
+  councilId: string,
+  deps: { log: Logger },
+) {
+  const log = deps.log.scope("returnCouncilSummary");
+  log.info("returnCouncilSummary");
+  log.debug("councilId", councilId);
 
-async function returnCouncilSummary(ctx: Context, councilId: string) {
+  log.event("loading council metadata + jurisdictions + channels + providers");
   const [metadata, jurisdictions, channels, providers] = await Promise.all([
     metadataRepo.getById(councilId),
     jurisdictionRepo.listAll(councilId),
@@ -93,228 +79,218 @@ async function returnCouncilSummary(ctx: Context, councilId: string) {
   };
 }
 
-/**
- * GET /public/councils
- * Lists every council with the same summary shape as GET /public/council.
- * No auth required. Used by the public network dashboard.
- *
- * Note: aggregation is N+1 on the council count. Acceptable while the
- * registered count is small; revisit if it grows.
- */
-const listAllCouncils = async (ctx: Context) => {
-  try {
-    const all = await metadataRepo.listAll();
-    const councils = await Promise.all(
-      all.map(async (m) => {
-        const [jurisdictions, channels, providers] = await Promise.all([
-          jurisdictionRepo.listAll(m.id),
-          channelRepo.listAll(m.id),
-          providerRepo.listActive(m.id),
-        ]);
-        return {
-          council: {
-            name: m.name,
-            description: m.description,
-            contactEmail: m.contactEmail,
-            channelAuthId: m.id,
-            councilPublicKey: m.councilPublicKey,
-          },
-          jurisdictions: jurisdictions.map((j) => ({
-            countryCode: j.countryCode,
-            label: j.label,
-          })),
-          channels: channels.map((ch) => ({
-            channelContractId: ch.channelContractId,
-            assetCode: ch.assetCode,
-            assetContractId: ch.assetContractId,
-            label: ch.label,
-          })),
-          providers: providers.map((p) => {
-            let parsedJurisdictions: string[] | null = null;
-            if (p.jurisdictions) {
-              try {
-                parsedJurisdictions = JSON.parse(p.jurisdictions);
-              } catch {
-                parsedJurisdictions = null;
-              }
-            }
-            return {
-              publicKey: p.publicKey,
-              label: p.label,
-              providerUrl: p.providerUrl,
-              jurisdictions: parsedJurisdictions,
-            };
-          }),
-        };
-      }),
-    );
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = { message: "Councils retrieved", data: councils };
-  } catch (error) {
-    LOG.error("Failed to list councils", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve councils" };
-  }
-};
-
-/**
- * GET /public/providers?councilId=...
- * Lists active providers. No auth required.
- */
-const getPublicProviders = async (ctx: Context) => {
-  try {
-    const councilId = getCouncilId(ctx);
-    if (!councilId) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "councilId query parameter is required" };
-      return;
-    }
-    const providers = await providerRepo.listActive(councilId);
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Providers retrieved",
-      data: providers.map((p) => ({
-        publicKey: p.publicKey,
-        label: p.label,
-      })),
-    };
-  } catch (error) {
-    LOG.error("Failed to get public providers", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve providers" };
-  }
-};
-
-/**
- * GET /public/channels?councilId=...
- * Lists channels. No auth required.
- */
-const getPublicChannels = async (ctx: Context) => {
-  try {
-    const councilId = getCouncilId(ctx);
-    if (!councilId) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "councilId query parameter is required" };
-      return;
-    }
-    const channels = await channelRepo.listAll(councilId);
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Channels retrieved",
-      data: channels.map((ch) => ({
-        channelContractId: ch.channelContractId,
-        assetCode: ch.assetCode,
-        assetContractId: ch.assetContractId,
-        label: ch.label,
-      })),
-    };
-  } catch (error) {
-    LOG.error("Failed to get public channels", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve channels" };
-  }
-};
-
 const knownAssetRepo = new KnownAssetRepository(drizzleClient);
-
-/**
- * GET /public/known-assets
- * Lists all assets ever enabled via the UI. Used for import discovery.
- */
-const getKnownAssets = async (ctx: Context) => {
-  try {
-    const assets = await knownAssetRepo.listAll();
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Known assets retrieved",
-      data: assets.map((a) => ({
-        assetCode: a.assetCode,
-        issuerAddress: a.issuerAddress,
-      })),
-    };
-  } catch (error) {
-    LOG.error("Failed to list known assets", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve known assets" };
-  }
-};
-
 const joinRequestRepo = new ProviderJoinRequestRepository(drizzleClient);
 
-/**
- * GET /public/provider/membership-status?councilId=...&publicKey=...
- * Returns the provider's membership status for a council.
- *   200 = active provider (registered on-chain and in DB)
- *   202 = pending join request
- *   404 = not found (also returned for rejected, to prevent enumeration)
- * No auth required — only returns status, no sensitive data.
- */
-const getMembershipStatus = async (ctx: Context) => {
-  try {
-    const councilId = getCouncilId(ctx);
-    const publicKey = ctx.request.url.searchParams.get("publicKey");
+export function buildPublicRouter(deps: { log: Logger }): Router {
+  const log = deps.log.scope("public");
 
-    if (!councilId || !publicKey) {
-      ctx.response.status = Status.BadRequest;
+  const handleGetCouncilSummary = async (ctx: Context) => {
+    try {
+      const councilId = getCouncilId(ctx);
+      if (!councilId) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message: "councilId query parameter is required",
+        };
+        return;
+      }
+      await returnCouncilSummary(ctx, councilId, deps);
+    } catch (error) {
+      log.error(error, "failed to get council summary");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve council summary" };
+    }
+  };
+
+  const handleListAllCouncils = async (ctx: Context) => {
+    try {
+      const all = await metadataRepo.listAll();
+      const councils = await Promise.all(
+        all.map(async (m) => {
+          const [jurisdictions, channels, providers] = await Promise.all([
+            jurisdictionRepo.listAll(m.id),
+            channelRepo.listAll(m.id),
+            providerRepo.listActive(m.id),
+          ]);
+          return {
+            council: {
+              name: m.name,
+              description: m.description,
+              contactEmail: m.contactEmail,
+              channelAuthId: m.id,
+              councilPublicKey: m.councilPublicKey,
+            },
+            jurisdictions: jurisdictions.map((j) => ({
+              countryCode: j.countryCode,
+              label: j.label,
+            })),
+            channels: channels.map((ch) => ({
+              channelContractId: ch.channelContractId,
+              assetCode: ch.assetCode,
+              assetContractId: ch.assetContractId,
+              label: ch.label,
+            })),
+            providers: providers.map((p) => {
+              let parsedJurisdictions: string[] | null = null;
+              if (p.jurisdictions) {
+                try {
+                  parsedJurisdictions = JSON.parse(p.jurisdictions);
+                } catch {
+                  parsedJurisdictions = null;
+                }
+              }
+              return {
+                publicKey: p.publicKey,
+                label: p.label,
+                providerUrl: p.providerUrl,
+                jurisdictions: parsedJurisdictions,
+              };
+            }),
+          };
+        }),
+      );
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = { message: "Councils retrieved", data: councils };
+    } catch (error) {
+      log.error(error, "failed to list councils");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve councils" };
+    }
+  };
+
+  const handleGetPublicProviders = async (ctx: Context) => {
+    try {
+      const councilId = getCouncilId(ctx);
+      if (!councilId) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message: "councilId query parameter is required",
+        };
+        return;
+      }
+      const providers = await providerRepo.listActive(councilId);
+
+      ctx.response.status = Status.OK;
       ctx.response.body = {
-        message: "councilId and publicKey query parameters are required",
+        message: "Providers retrieved",
+        data: providers.map((p) => ({
+          publicKey: p.publicKey,
+          label: p.label,
+        })),
       };
-      return;
+    } catch (error) {
+      log.error(error, "failed to get public providers");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve providers" };
     }
+  };
 
-    // Check if active provider (single-row lookup)
-    const provider = await providerRepo.findByPublicKey(councilId, publicKey);
-    if (provider && provider.status === "ACTIVE") {
-      ctx.response.status = 200;
-      ctx.response.body = { status: "ACTIVE" };
-      return;
+  const handleGetPublicChannels = async (ctx: Context) => {
+    try {
+      const councilId = getCouncilId(ctx);
+      if (!councilId) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message: "councilId query parameter is required",
+        };
+        return;
+      }
+      const channels = await channelRepo.listAll(councilId);
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Channels retrieved",
+        data: channels.map((ch) => ({
+          channelContractId: ch.channelContractId,
+          assetCode: ch.assetCode,
+          assetContractId: ch.assetContractId,
+          label: ch.label,
+        })),
+      };
+    } catch (error) {
+      log.error(error, "failed to get public channels");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve channels" };
     }
+  };
 
-    // Check for pending request
-    const pending = await joinRequestRepo.findPendingByPublicKey(
-      councilId,
-      publicKey,
-    );
-    if (pending) {
-      ctx.response.status = 202;
-      ctx.response.body = { status: "PENDING" };
-      return;
+  const handleGetKnownAssets = async (ctx: Context) => {
+    try {
+      const assets = await knownAssetRepo.listAll();
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Known assets retrieved",
+        data: assets.map((a) => ({
+          assetCode: a.assetCode,
+          issuerAddress: a.issuerAddress,
+        })),
+      };
+    } catch (error) {
+      log.error(error, "failed to list known assets");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve known assets" };
     }
+  };
 
-    // Return 404 for both rejected and non-existent providers to prevent enumeration
-    ctx.response.status = 404;
-    ctx.response.body = { status: "NOT_FOUND" };
-  } catch (error) {
-    LOG.error("Failed to get membership status", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve membership status" };
-  }
-};
+  const handleGetMembershipStatus = async (ctx: Context) => {
+    try {
+      const councilId = getCouncilId(ctx);
+      const publicKey = ctx.request.url.searchParams.get("publicKey");
 
-const publicRouter = new Router();
+      if (!councilId || !publicKey) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message: "councilId and publicKey query parameters are required",
+        };
+        return;
+      }
 
-publicRouter.get("/public/provider/membership-status", getMembershipStatus);
-publicRouter.get("/public/councils", listAllCouncils);
-publicRouter.get("/public/council", getCouncilSummary);
-publicRouter.get("/public/providers", getPublicProviders);
-publicRouter.get("/public/channels", getPublicChannels);
-publicRouter.get("/public/known-assets", getKnownAssets);
-publicRouter.post(
-  "/public/provider/join-request",
-  createPostJoinRequestHandler(joinRequestRepo),
-);
+      // Check if active provider (single-row lookup)
+      const provider = await providerRepo.findByPublicKey(councilId, publicKey);
+      if (provider && provider.status === "ACTIVE") {
+        ctx.response.status = 200;
+        ctx.response.body = { status: "ACTIVE" };
+        return;
+      }
 
-export default publicRouter;
+      // Check for pending request
+      const pending = await joinRequestRepo.findPendingByPublicKey(
+        councilId,
+        publicKey,
+      );
+      if (pending) {
+        ctx.response.status = 202;
+        ctx.response.body = { status: "PENDING" };
+        return;
+      }
+
+      // Return 404 for both rejected and non-existent providers to prevent enumeration
+      ctx.response.status = 404;
+      ctx.response.body = { status: "NOT_FOUND" };
+    } catch (error) {
+      log.error(error, "failed to get membership status");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve membership status" };
+    }
+  };
+
+  const publicRouter = new Router();
+
+  publicRouter.get(
+    "/public/provider/membership-status",
+    handleGetMembershipStatus,
+  );
+  publicRouter.get("/public/councils", handleListAllCouncils);
+  publicRouter.get("/public/council", handleGetCouncilSummary);
+  publicRouter.get("/public/providers", handleGetPublicProviders);
+  publicRouter.get("/public/channels", handleGetPublicChannels);
+  publicRouter.get("/public/known-assets", handleGetKnownAssets);
+  publicRouter.post(
+    "/public/provider/join-request",
+    createPostJoinRequestHandler(joinRequestRepo, { log }),
+  );
+
+  return publicRouter;
+}

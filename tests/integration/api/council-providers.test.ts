@@ -4,6 +4,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-providers.test.ts
  */
 import { assertEquals } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { createMockContext } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
@@ -16,9 +17,9 @@ import {
 import { Keypair } from "stellar-sdk";
 
 import {
-  getProviderHandler,
-  listProvidersHandler,
-  updateProviderHandler,
+  handleGetProvider,
+  handleListProviders,
+  handleUpdateProvider,
 } from "@/http/v1/council/providers.ts";
 
 const adminState = {
@@ -53,7 +54,7 @@ Deno.test("GET /council/providers - lists all providers", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await listProvidersHandler(ctx);
+  await handleListProviders({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -80,7 +81,7 @@ Deno.test("GET /council/providers?status=ACTIVE - filters to active", async () =
     query: { status: "ACTIVE", councilId: "default" },
     state: { ...adminState },
   });
-  await listProvidersHandler(ctx);
+  await handleListProviders({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -104,7 +105,7 @@ Deno.test("GET /council/providers/:id - returns provider details", async () => {
     params: { id: provider.id },
     state: { ...adminState },
   });
-  await getProviderHandler(ctx);
+  await handleGetProvider({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -120,7 +121,7 @@ Deno.test("GET /council/providers/:id - returns 404 for non-existent", async () 
     params: { id: "non-existent" },
     state: { ...adminState },
   });
-  await getProviderHandler(ctx);
+  await handleGetProvider({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);
@@ -143,7 +144,7 @@ Deno.test("PUT /council/providers/:id - updates provider metadata", async () => 
     body: { label: "Updated Label", contactEmail: "new@example.com" },
     state: { ...adminState },
   });
-  await updateProviderHandler(ctx);
+  await handleUpdateProvider({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);

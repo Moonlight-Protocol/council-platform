@@ -6,6 +6,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-sign.test.ts
  */
 import { assertEquals, assertExists } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { createMockContext } from "../../test_app.ts";
 import {
   CustodialUserStatus,
@@ -20,9 +21,9 @@ import {
 import { Keypair } from "stellar-sdk";
 
 import {
-  postGetKeysHandler,
-  postRegisterUserHandler,
-  postSignSpendHandler,
+  handlePostGetKeys,
+  handlePostRegisterUser,
+  handlePostSignSpend,
 } from "@/http/v1/council/sign.ts";
 
 const TEST_CONTRACT_ID = testContractId();
@@ -71,7 +72,7 @@ Deno.test("POST /council/sign/register - creates user with provider JWT", async 
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postRegisterUserHandler(ctx);
+  await handlePostRegisterUser({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -96,7 +97,7 @@ Deno.test("POST /council/sign/register - rejects non-provider JWT", async () => 
     },
     state: adminState(kp.publicKey()),
   });
-  await postRegisterUserHandler(ctx);
+  await handlePostRegisterUser({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 403);
@@ -121,13 +122,13 @@ Deno.test("POST /council/sign/register - returns same data for duplicate registr
 
   // First registration
   const first = createMockContext({ method: "POST", body, state });
-  await postRegisterUserHandler(first.ctx);
+  await handlePostRegisterUser({ log: newNoop() })(first.ctx);
   const res1 = first.getResponse();
   assertEquals(res1.status, 200);
 
   // Second registration (duplicate)
   const second = createMockContext({ method: "POST", body, state });
-  await postRegisterUserHandler(second.ctx);
+  await handlePostRegisterUser({ log: newNoop() })(second.ctx);
   const res2 = second.getResponse();
   assertEquals(res2.status, 200);
 
@@ -153,7 +154,7 @@ Deno.test("POST /council/sign/register - rejects missing externalId", async () =
     body: { councilId: "default", channelContractId: TEST_CONTRACT_ID },
     state: providerState(providerKp.publicKey()),
   });
-  await postRegisterUserHandler(ctx);
+  await handlePostRegisterUser({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -186,7 +187,7 @@ Deno.test("POST /council/sign/keys - returns derived public keys", async () => {
     },
     state,
   });
-  await postRegisterUserHandler(regCtx.ctx);
+  await handlePostRegisterUser({ log: newNoop() })(regCtx.ctx);
   assertEquals(regCtx.getResponse().status, 200);
 
   // Request keys at indices [0, 1, 2]
@@ -200,7 +201,7 @@ Deno.test("POST /council/sign/keys - returns derived public keys", async () => {
     },
     state,
   });
-  await postGetKeysHandler(ctx);
+  await handlePostGetKeys({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -232,7 +233,7 @@ Deno.test("POST /council/sign/keys - rejects unregistered user", async () => {
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postGetKeysHandler(ctx);
+  await handlePostGetKeys({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 500);
@@ -260,7 +261,7 @@ Deno.test("POST /council/sign/keys - rejects more than 300 indices", async () =>
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postGetKeysHandler(ctx);
+  await handlePostGetKeys({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -293,7 +294,7 @@ Deno.test("POST /council/sign/spend - returns signatures for valid request", asy
     },
     state,
   });
-  await postRegisterUserHandler(regCtx.ctx);
+  await handlePostRegisterUser({ log: newNoop() })(regCtx.ctx);
   assertEquals(regCtx.getResponse().status, 200);
 
   // Sign a spend
@@ -310,7 +311,7 @@ Deno.test("POST /council/sign/spend - returns signatures for valid request", asy
     },
     state,
   });
-  await postSignSpendHandler(ctx);
+  await handlePostSignSpend({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -337,7 +338,7 @@ Deno.test("POST /council/sign/spend - rejects non-provider JWT", async () => {
     },
     state: adminState(kp.publicKey()),
   });
-  await postSignSpendHandler(ctx);
+  await handlePostSignSpend({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 403);
@@ -364,7 +365,7 @@ Deno.test("POST /council/sign/spend - rejects unregistered user", async () => {
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postSignSpendHandler(ctx);
+  await handlePostSignSpend({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);
@@ -405,7 +406,7 @@ Deno.test("POST /council/sign/spend - rejects wrong provider for user", async ()
     },
     state: providerState(providerBKp.publicKey()),
   });
-  await postSignSpendHandler(ctx);
+  await handlePostSignSpend({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 403);
@@ -440,7 +441,7 @@ Deno.test("POST /council/sign/spend - rejects suspended user", async () => {
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postSignSpendHandler(ctx);
+  await handlePostSignSpend({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 403);
@@ -474,7 +475,7 @@ Deno.test("POST /council/sign/spend - rejects invalid hex message", async () => 
     },
     state: providerState(providerKp.publicKey()),
   });
-  await postSignSpendHandler(ctx);
+  await handlePostSignSpend({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);

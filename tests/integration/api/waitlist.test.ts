@@ -7,11 +7,13 @@ import {
 } from "../../test_helpers.ts";
 import { waitlistRequest } from "@/persistence/drizzle/entity/waitlist-request.entity.ts";
 import { WaitlistRequestRepository } from "@/persistence/drizzle/repository/waitlist-request.repository.ts";
+import { newNoop } from "@/utils/logger/index.ts";
 
-const { default: waitlistRouter, setWaitlistRepoForTests } = await import(
+const { buildWaitlistRouter, setWaitlistRepoForTests } = await import(
   "@/http/v1/waitlist/routes.ts"
 );
 
+const waitlistRouter = buildWaitlistRouter({ log: newNoop() });
 const routes = [...waitlistRouter];
 const waitlistRoute = routes.find(
   (r) => r.path === "/waitlist" && r.methods.includes("POST"),

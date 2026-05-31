@@ -7,7 +7,7 @@ import {
   releaseEscrowsForRecipient,
 } from "@/core/service/escrow/escrow.service.ts";
 import type { JwtSessionData } from "@/http/middleware/auth/index.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 
@@ -22,64 +22,70 @@ type RouteParams = { address?: string };
  * PP checks if a recipient has UTXO addresses for a channel.
  * Query param: ?channelContractId=C...&count=1
  */
-export const getRecipientUtxosHandler = async (ctx: Context) => {
-  try {
-    const params = (ctx as unknown as { params?: RouteParams }).params;
-    const address = params?.address;
+export function handleGetRecipientUtxos(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("getRecipientUtxos");
 
-    if (!address) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Recipient address is required" };
-      return;
-    }
+  return async (ctx) => {
+    log.info("getRecipientUtxos");
+    try {
+      const params = (ctx as unknown as { params?: RouteParams }).params;
+      const address = params?.address;
 
-    const channelContractId = ctx.request.url.searchParams.get(
-      "channelContractId",
-    );
-    if (!channelContractId) {
-      ctx.response.status = Status.BadRequest;
+      if (!address) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Recipient address is required" };
+        return;
+      }
+
+      const channelContractId = ctx.request.url.searchParams.get(
+        "channelContractId",
+      );
+      if (!channelContractId) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message: "channelContractId query param is required",
+        };
+        return;
+      }
+
+      const councilId = ctx.request.url.searchParams.get("councilId");
+      if (!councilId) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "councilId query param is required" };
+        return;
+      }
+
+      const count = Number(ctx.request.url.searchParams.get("count") || "1");
+      if (!Number.isInteger(count) || count < 1 || count > 300) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "count must be 1-300" };
+        return;
+      }
+
+      const result = await getRecipientUtxos(
+        councilId,
+        address,
+        channelContractId,
+        count,
+        deps,
+      );
+
+      ctx.response.status = Status.OK;
       ctx.response.body = {
-        message: "channelContractId query param is required",
+        message: result.registered
+          ? "Recipient has UTXO addresses"
+          : "Recipient not registered",
+        data: result,
       };
-      return;
+    } catch (error) {
+      log.error(error, "failed to check recipient UTXOs");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to check recipient" };
     }
-
-    const councilId = ctx.request.url.searchParams.get("councilId");
-    if (!councilId) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "councilId query param is required" };
-      return;
-    }
-
-    const count = Number(ctx.request.url.searchParams.get("count") || "1");
-    if (!Number.isInteger(count) || count < 1 || count > 300) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "count must be 1-300" };
-      return;
-    }
-
-    const result = await getRecipientUtxos(
-      councilId,
-      address,
-      channelContractId,
-      count,
-    );
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: result.registered
-        ? "Recipient has UTXO addresses"
-        : "Recipient not registered",
-      data: result,
-    };
-  } catch (error) {
-    LOG.error("Failed to check recipient UTXOs", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to check recipient" };
-  }
-};
+  };
+}
 
 /**
  * POST /council/escrow
@@ -94,89 +100,99 @@ export const getRecipientUtxosHandler = async (ctx: Context) => {
  *   channelContractId: string
  * }
  */
-export const postEscrowHandler = async (ctx: Context) => {
-  try {
-    const session = ctx.state.session as JwtSessionData;
+export function handlePostEscrow(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("postEscrow");
 
-    const body = await ctx.request.body.json();
-    const {
-      councilId,
-      senderAddress,
-      recipientAddress,
-      amount,
-      assetCode,
-      channelContractId,
-    } = body;
+  return async (ctx) => {
+    log.info("postEscrow");
+    try {
+      const session = ctx.state.session as JwtSessionData;
 
-    if (
-      !councilId || !senderAddress || !recipientAddress || !amount ||
-      !assetCode || !channelContractId
-    ) {
-      ctx.response.status = Status.BadRequest;
+      const body = await ctx.request.body.json();
+      const {
+        councilId,
+        senderAddress,
+        recipientAddress,
+        amount,
+        assetCode,
+        channelContractId,
+      } = body;
+
+      if (
+        !councilId || !senderAddress || !recipientAddress || !amount ||
+        !assetCode || !channelContractId
+      ) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message:
+            "councilId, senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
+        };
+        return;
+      }
+
+      if (typeof amount !== "string" || !AMOUNT_RE.test(amount)) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message: "amount must be a positive integer string (stroops)",
+        };
+        return;
+      }
+
+      const amountBigInt = BigInt(amount);
+      if (amountBigInt <= 0n) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "amount must be positive" };
+        return;
+      }
+
+      if (!StrKey.isValidContractId(channelContractId)) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Invalid channelContractId" };
+        return;
+      }
+
+      // Verify the calling provider belongs to this council
+      const provider = await providerRepo.findByPublicKey(
+        councilId,
+        session.sub,
+      );
+      if (!provider) {
+        ctx.response.status = Status.Forbidden;
+        ctx.response.body = {
+          message: "Provider not a member of this council",
+        };
+        return;
+      }
+
+      const result = await createEscrow({
+        councilId,
+        senderAddress,
+        recipientAddress,
+        amount: amountBigInt,
+        assetCode,
+        channelContractId,
+        submittedByProvider: session.sub,
+      }, { log });
+
+      ctx.response.status = Status.OK;
       ctx.response.body = {
-        message:
-          "councilId, senderAddress, recipientAddress, amount, assetCode, and channelContractId are required",
+        message: "Escrow created",
+        data: result,
       };
-      return;
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Invalid request body" };
+      } else {
+        log.error(error, "failed to create escrow");
+        ctx.response.status = Status.InternalServerError;
+        ctx.response.body = { message: "Failed to create escrow" };
+      }
     }
-
-    if (typeof amount !== "string" || !AMOUNT_RE.test(amount)) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = {
-        message: "amount must be a positive integer string (stroops)",
-      };
-      return;
-    }
-
-    const amountBigInt = BigInt(amount);
-    if (amountBigInt <= 0n) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "amount must be positive" };
-      return;
-    }
-
-    if (!StrKey.isValidContractId(channelContractId)) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Invalid channelContractId" };
-      return;
-    }
-
-    // Verify the calling provider belongs to this council
-    const provider = await providerRepo.findByPublicKey(councilId, session.sub);
-    if (!provider) {
-      ctx.response.status = Status.Forbidden;
-      ctx.response.body = { message: "Provider not a member of this council" };
-      return;
-    }
-
-    const result = await createEscrow({
-      councilId,
-      senderAddress,
-      recipientAddress,
-      amount: amountBigInt,
-      assetCode,
-      channelContractId,
-      submittedByProvider: session.sub,
-    });
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Escrow created",
-      data: result,
-    };
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Invalid request body" };
-    } else {
-      LOG.error("Failed to create escrow", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to create escrow" };
-    }
-  }
-};
+  };
+}
 
 /**
  * GET /council/escrow/:address
@@ -184,36 +200,41 @@ export const postEscrowHandler = async (ctx: Context) => {
  * Get pending escrow summary for a recipient.
  * Available to providers (to show users their pending funds).
  */
-export const getEscrowSummaryHandler = async (ctx: Context) => {
-  try {
-    const params = (ctx as unknown as { params?: RouteParams }).params;
-    const address = params?.address;
+export function handleGetEscrowSummary(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("getEscrowSummary");
 
-    if (!address) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Recipient address is required" };
-      return;
+  return async (ctx) => {
+    log.info("getEscrowSummary");
+    try {
+      const params = (ctx as unknown as { params?: RouteParams }).params;
+      const address = params?.address;
+
+      if (!address) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Recipient address is required" };
+        return;
+      }
+
+      const summary = await getEscrowSummary(address, deps);
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Escrow summary retrieved",
+        data: {
+          pendingCount: summary.pendingCount,
+          pendingTotal: summary.pendingTotal.toString(),
+          escrows: summary.escrows,
+        },
+      };
+    } catch (error) {
+      log.error(error, "failed to get escrow summary");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to retrieve escrow summary" };
     }
-
-    const summary = await getEscrowSummary(address);
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Escrow summary retrieved",
-      data: {
-        pendingCount: summary.pendingCount,
-        pendingTotal: summary.pendingTotal.toString(),
-        escrows: summary.escrows,
-      },
-    };
-  } catch (error) {
-    LOG.error("Failed to get escrow summary", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve escrow summary" };
-  }
-};
+  };
+}
 
 /**
  * POST /council/escrow/:address/release
@@ -223,49 +244,58 @@ export const getEscrowSummaryHandler = async (ctx: Context) => {
  *
  * Body: { channelContractId: string }
  */
-export const postEscrowReleaseHandler = async (ctx: Context) => {
-  try {
-    const params = (ctx as unknown as { params?: RouteParams }).params;
-    const address = params?.address;
+export function handlePostEscrowRelease(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("postEscrowRelease");
 
-    if (!address) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Recipient address is required" };
-      return;
+  return async (ctx) => {
+    log.info("postEscrowRelease");
+    try {
+      const params = (ctx as unknown as { params?: RouteParams }).params;
+      const address = params?.address;
+
+      if (!address) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Recipient address is required" };
+        return;
+      }
+
+      const body = await ctx.request.body.json();
+      const { channelContractId } = body;
+
+      if (!channelContractId || !StrKey.isValidContractId(channelContractId)) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Valid channelContractId is required" };
+        return;
+      }
+
+      const result = await releaseEscrowsForRecipient(
+        address,
+        channelContractId,
+        { log },
+      );
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: result.released > 0
+          ? `Released ${result.released} escrow(s)`
+          : "No pending escrows for this recipient",
+        data: {
+          released: result.released,
+          totalReleased: result.totalReleased.toString(),
+          totalFees: result.totalFees.toString(),
+        },
+      };
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Invalid request body" };
+      } else {
+        log.error(error, "failed to release escrow");
+        ctx.response.status = Status.InternalServerError;
+        ctx.response.body = { message: "Failed to release escrow" };
+      }
     }
-
-    const body = await ctx.request.body.json();
-    const { channelContractId } = body;
-
-    if (!channelContractId || !StrKey.isValidContractId(channelContractId)) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Valid channelContractId is required" };
-      return;
-    }
-
-    const result = await releaseEscrowsForRecipient(address, channelContractId);
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: result.released > 0
-        ? `Released ${result.released} escrow(s)`
-        : "No pending escrows for this recipient",
-      data: {
-        released: result.released,
-        totalReleased: result.totalReleased.toString(),
-        totalFees: result.totalFees.toString(),
-      },
-    };
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Invalid request body" };
-    } else {
-      LOG.error("Failed to release escrow", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to release escrow" };
-    }
-  }
-};
+  };
+}

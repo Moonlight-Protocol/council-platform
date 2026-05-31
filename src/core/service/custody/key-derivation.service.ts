@@ -7,15 +7,25 @@ import { decryptSecret } from "@/core/crypto/encrypt-secret.ts";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { withSpan } from "@/core/tracing.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
 /** Loads and decrypts a council's derivation root. Throws if the council doesn't exist. */
-async function loadDerivationRoot(councilId: string): Promise<Uint8Array> {
+async function loadDerivationRoot(
+  councilId: string,
+  deps: { log: Logger },
+): Promise<Uint8Array> {
+  const log = deps.log.scope("loadDerivationRoot");
+  log.info("loadDerivationRoot");
+  log.debug("councilId", councilId);
+
+  log.event("looking up council metadata");
   const council = await metadataRepo.getById(councilId);
   if (!council) {
     throw new Error(`Council not found: ${councilId}`);
   }
+  log.event("decrypting derivation root");
   return decryptSecret(council.encryptedDerivationRoot, SERVICE_AUTH_SECRET);
 }
 
@@ -42,16 +52,22 @@ export function deriveP256Keypair(
   channelContractId: string,
   userExternalId: string,
   utxoIndex: number,
+  deps: { log: Logger },
 ): Promise<{ publicKey: Uint8Array; privateKey: Uint8Array }> {
   return withSpan("KeyDerivation.deriveP256Keypair", async (span) => {
+    const log = deps.log.scope("deriveP256Keypair");
+    log.info("deriveP256Keypair");
+    log.debug("councilId", councilId);
+    log.debug("channelContractId", channelContractId);
+    log.debug("utxoIndex", utxoIndex);
+
     span.setAttribute("council.id", councilId);
     span.setAttribute("channel.contract_id", channelContractId);
     span.setAttribute("utxo.index", utxoIndex);
 
-    // Context = network passphrase + channel contract ID (same as SDK's assembleNetworkContext)
     const context = `${NETWORK}${channelContractId}`;
-    // Root = per-council random 32 bytes (decrypted from DB)
-    const rootBytes = await loadDerivationRoot(councilId);
+    log.event("loading derivation root");
+    const rootBytes = await loadDerivationRoot(councilId, deps);
     const root = btoa(String.fromCharCode(...rootBytes));
     // Index = user external ID + ":" + UTXO index
     const index = `${userExternalId}:${utxoIndex}`;
@@ -68,18 +84,18 @@ export function deriveP256Keypair(
     );
     const hashedSeed = new Uint8Array(hashBuffer);
 
-    // Derive P256 keypair from seed (same as SDK's deriveP256KeyPairFromSeed)
+    log.event("deriving P256 keypair from seed");
     const expanded = hkdf(sha256, hashedSeed, undefined, "application", 48);
     const privateScalarBytes = mapHashToField(expanded, p256.CURVE.n);
     const privateScalar = bytesToBigIntBE(privateScalarBytes);
     const rawPrivateKey = numberToBytesBE(privateScalar, 32);
     const publicKey = p256.getPublicKey(rawPrivateKey, false);
 
-    // Best-effort zeroization of intermediate key material
     hashedSeed.fill(0);
     expanded.fill(0);
     privateScalarBytes.fill(0);
 
+    log.event("keypair derived");
     return { publicKey, privateKey: rawPrivateKey };
   });
 }
@@ -93,12 +109,14 @@ export async function deriveP256PublicKey(
   channelContractId: string,
   userExternalId: string,
   utxoIndex: number,
+  deps: { log: Logger },
 ): Promise<Uint8Array> {
   const { publicKey } = await deriveP256Keypair(
     councilId,
     channelContractId,
     userExternalId,
     utxoIndex,
+    deps,
   );
   return publicKey;
 }
@@ -114,8 +132,14 @@ export function signWithDerivedKey(
   userExternalId: string,
   utxoIndex: number,
   message: Uint8Array,
+  deps: { log: Logger },
 ): Promise<Uint8Array> {
   return withSpan("KeyDerivation.signWithDerivedKey", async (span) => {
+    const log = deps.log.scope("signWithDerivedKey");
+    log.info("signWithDerivedKey");
+    log.debug("councilId", councilId);
+    log.debug("utxoIndex", utxoIndex);
+
     span.setAttribute("council.id", councilId);
     span.setAttribute("channel.contract_id", channelContractId);
     span.setAttribute("utxo.index", utxoIndex);
@@ -125,14 +149,13 @@ export function signWithDerivedKey(
       channelContractId,
       userExternalId,
       utxoIndex,
+      deps,
     );
     try {
+      log.event("signing message");
       const signature = p256.sign(message, privateKey);
       return signature.toDERRawBytes();
     } finally {
-      // Best-effort zeroization — clears the Uint8Array holding private key material.
-      // Note: intermediate values in deriveP256Keypair (expanded, privateScalarBytes)
-      // are stack-local and will be GC'd, but cannot be explicitly zeroed from here.
       privateKey.fill(0);
     }
   });

@@ -3,7 +3,7 @@ import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilJurisdictionRepository } from "@/persistence/drizzle/repository/council-jurisdiction.repository.ts";
 import { requireCouncilId, requireCouncilOwnership } from "./helpers.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 
@@ -11,145 +11,170 @@ const jurisdictionRepo = new CouncilJurisdictionRepository(drizzleClient);
 
 const COUNTRY_CODE_RE = /^[A-Z]{2}$/;
 
-export const listJurisdictionsHandler = async (ctx: Context) => {
-  try {
-    const councilId = requireCouncilId(ctx);
-    if (!councilId) return;
-    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+export function handleListJurisdictions(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("listJurisdictions");
 
-    const jurisdictions = await jurisdictionRepo.listAll(councilId);
+  return async (ctx) => {
+    log.info("listJurisdictions");
+    try {
+      const councilId = requireCouncilId(ctx);
+      if (!councilId) return;
+      if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
 
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Jurisdictions retrieved",
-      data: jurisdictions.map((j) => ({
-        id: j.id,
-        countryCode: j.countryCode,
-        label: j.label,
-      })),
-    };
-  } catch (error) {
-    LOG.error("Failed to list jurisdictions", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to retrieve jurisdictions" };
-  }
-};
+      const jurisdictions = await jurisdictionRepo.listAll(councilId);
 
-export const addJurisdictionHandler = async (ctx: Context) => {
-  try {
-    const councilId = requireCouncilId(ctx);
-    if (!councilId) return;
-    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
-
-    const body = await ctx.request.body.json();
-    const { countryCode, label } = body;
-
-    if (!countryCode || typeof countryCode !== "string") {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "countryCode is required" };
-      return;
-    }
-
-    const code = countryCode.toUpperCase();
-    if (!COUNTRY_CODE_RE.test(code)) {
-      ctx.response.status = Status.BadRequest;
+      ctx.response.status = Status.OK;
       ctx.response.body = {
-        message:
-          "countryCode must be a valid ISO 3166-1 alpha-2 code (e.g. US, BR, DE)",
+        message: "Jurisdictions retrieved",
+        data: jurisdictions.map((j) => ({
+          id: j.id,
+          countryCode: j.countryCode,
+          label: j.label,
+        })),
       };
-      return;
-    }
-
-    const existing = await jurisdictionRepo.findByCountryCode(councilId, code);
-    if (existing) {
-      ctx.response.status = Status.Conflict;
-      ctx.response.body = { message: `Jurisdiction ${code} already exists` };
-      return;
-    }
-
-    const deleted = await jurisdictionRepo.findDeletedByCountryCode(
-      councilId,
-      code,
-    );
-    let jurisdiction;
-    if (deleted) {
-      jurisdiction = await jurisdictionRepo.update(deleted.id, {
-        deletedAt: null,
-        label: label?.trim() ?? deleted.label,
-      });
-    } else {
-      jurisdiction = await jurisdictionRepo.create({
-        id: crypto.randomUUID(),
-        councilId,
-        countryCode: code,
-        label: label?.trim() ?? null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-    }
-
-    LOG.info("Jurisdiction added", { councilId, countryCode: code });
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = {
-      message: "Jurisdiction added",
-      data: {
-        id: jurisdiction.id,
-        countryCode: jurisdiction.countryCode,
-        label: jurisdiction.label,
-      },
-    };
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Invalid request body" };
-    } else {
-      LOG.error("Failed to add jurisdiction", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+    } catch (error) {
+      log.error(error, "failed to list jurisdictions");
       ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to add jurisdiction" };
+      ctx.response.body = { message: "Failed to retrieve jurisdictions" };
     }
-  }
-};
+  };
+}
+
+export function handleAddJurisdiction(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("addJurisdiction");
+
+  return async (ctx) => {
+    log.info("addJurisdiction");
+    try {
+      const councilId = requireCouncilId(ctx);
+      if (!councilId) return;
+      if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+      log.debug("councilId", councilId);
+
+      const body = await ctx.request.body.json();
+      const { countryCode, label } = body;
+
+      if (!countryCode || typeof countryCode !== "string") {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "countryCode is required" };
+        return;
+      }
+
+      const code = countryCode.toUpperCase();
+      if (!COUNTRY_CODE_RE.test(code)) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = {
+          message:
+            "countryCode must be a valid ISO 3166-1 alpha-2 code (e.g. US, BR, DE)",
+        };
+        return;
+      }
+
+      const existing = await jurisdictionRepo.findByCountryCode(
+        councilId,
+        code,
+      );
+      if (existing) {
+        ctx.response.status = Status.Conflict;
+        ctx.response.body = { message: `Jurisdiction ${code} already exists` };
+        return;
+      }
+
+      const deleted = await jurisdictionRepo.findDeletedByCountryCode(
+        councilId,
+        code,
+      );
+      let jurisdiction;
+      if (deleted) {
+        jurisdiction = await jurisdictionRepo.update(deleted.id, {
+          deletedAt: null,
+          label: label?.trim() ?? deleted.label,
+        });
+      } else {
+        jurisdiction = await jurisdictionRepo.create({
+          id: crypto.randomUUID(),
+          councilId,
+          countryCode: code,
+          label: label?.trim() ?? null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
+      log.debug("countryCode", code);
+      log.event("jurisdiction added");
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Jurisdiction added",
+        data: {
+          id: jurisdiction.id,
+          countryCode: jurisdiction.countryCode,
+          label: jurisdiction.label,
+        },
+      };
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Invalid request body" };
+      } else {
+        log.error(error, "failed to add jurisdiction");
+        ctx.response.status = Status.InternalServerError;
+        ctx.response.body = { message: "Failed to add jurisdiction" };
+      }
+    }
+  };
+}
 
 type RouteParams = { code?: string };
 
-export const removeJurisdictionHandler = async (ctx: Context) => {
-  try {
-    const councilId = requireCouncilId(ctx);
-    if (!councilId) return;
-    if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+export function handleRemoveJurisdiction(
+  deps: { log: Logger },
+): (ctx: Context) => Promise<void> {
+  const log = deps.log.scope("removeJurisdiction");
 
-    const params = (ctx as unknown as { params?: RouteParams }).params;
-    const code = params?.code?.toUpperCase();
+  return async (ctx) => {
+    log.info("removeJurisdiction");
+    try {
+      const councilId = requireCouncilId(ctx);
+      if (!councilId) return;
+      if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+      log.debug("councilId", councilId);
 
-    if (!code || !COUNTRY_CODE_RE.test(code)) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = { message: "Valid country code is required" };
-      return;
+      const params = (ctx as unknown as { params?: RouteParams }).params;
+      const code = params?.code?.toUpperCase();
+
+      if (!code || !COUNTRY_CODE_RE.test(code)) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = { message: "Valid country code is required" };
+        return;
+      }
+
+      const existing = await jurisdictionRepo.findByCountryCode(
+        councilId,
+        code,
+      );
+      if (!existing) {
+        ctx.response.status = Status.NotFound;
+        ctx.response.body = { message: `Jurisdiction ${code} not found` };
+        return;
+      }
+
+      await jurisdictionRepo.delete(existing.id);
+
+      log.debug("countryCode", code);
+      log.event("jurisdiction removed");
+
+      ctx.response.status = Status.OK;
+      ctx.response.body = { message: `Jurisdiction ${code} removed` };
+    } catch (error) {
+      log.error(error, "failed to remove jurisdiction");
+      ctx.response.status = Status.InternalServerError;
+      ctx.response.body = { message: "Failed to remove jurisdiction" };
     }
-
-    const existing = await jurisdictionRepo.findByCountryCode(councilId, code);
-    if (!existing) {
-      ctx.response.status = Status.NotFound;
-      ctx.response.body = { message: `Jurisdiction ${code} not found` };
-      return;
-    }
-
-    await jurisdictionRepo.delete(existing.id);
-
-    LOG.info("Jurisdiction removed", { councilId, countryCode: code });
-
-    ctx.response.status = Status.OK;
-    ctx.response.body = { message: `Jurisdiction ${code} removed` };
-  } catch (error) {
-    LOG.error("Failed to remove jurisdiction", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = { message: "Failed to remove jurisdiction" };
-  }
-};
+  };
+}

@@ -4,6 +4,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/council-jurisdictions.test.ts
  */
 import { assertEquals, assertExists } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import { createMockContext } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
@@ -14,9 +15,9 @@ import {
 } from "../../test_helpers.ts";
 
 import {
-  addJurisdictionHandler,
-  listJurisdictionsHandler,
-  removeJurisdictionHandler,
+  handleAddJurisdiction,
+  handleListJurisdictions,
+  handleRemoveJurisdiction,
 } from "@/http/v1/council/jurisdictions.ts";
 
 const adminState = {
@@ -44,7 +45,7 @@ Deno.test("GET /council/jurisdictions - lists jurisdictions", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await listJurisdictionsHandler(ctx);
+  await handleListJurisdictions({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -66,7 +67,7 @@ Deno.test("POST /council/jurisdictions - adds a jurisdiction", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addJurisdictionHandler(ctx);
+  await handleAddJurisdiction({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -87,7 +88,7 @@ Deno.test("POST /council/jurisdictions - rejects invalid country code", async ()
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addJurisdictionHandler(ctx);
+  await handleAddJurisdiction({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 400);
@@ -106,7 +107,7 @@ Deno.test("POST /council/jurisdictions - rejects duplicate country code", async 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await addJurisdictionHandler(ctx);
+  await handleAddJurisdiction({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 409);
@@ -129,7 +130,7 @@ Deno.test("DELETE /council/jurisdictions/:code - removes a jurisdiction", async 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await removeJurisdictionHandler(ctx);
+  await handleRemoveJurisdiction({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -147,7 +148,7 @@ Deno.test("DELETE /council/jurisdictions/:code - returns 404 for non-existent", 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await removeJurisdictionHandler(ctx);
+  await handleRemoveJurisdiction({ log: newNoop() })(ctx);
 
   const res = getResponse();
   assertEquals(res.status, 404);

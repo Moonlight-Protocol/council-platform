@@ -1,6 +1,6 @@
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
-export function logAndThrow(error: Error): never {
-  LOG.error(error.message, { error });
+export function logAndThrow(log: Logger, error: Error): never {
+  log.error(error, error.message);
   throw error;
 }

@@ -6,7 +6,7 @@ import {
   type SignedPayload,
   verifyPayload,
 } from "@/core/crypto/signed-payload.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 interface JoinRequestPayload {
   publicKey: string;
@@ -23,8 +23,12 @@ interface JoinRequestPayload {
  */
 export function createPostJoinRequestHandler(
   joinRequestRepo: ProviderJoinRequestRepository,
+  deps: { log: Logger },
 ) {
+  const log = deps.log.scope("postJoinRequest");
+
   return async (ctx: Context) => {
+    log.info("postJoinRequest");
     try {
       const body = await ctx.request.body.json();
 
@@ -196,7 +200,9 @@ export function createPostJoinRequestHandler(
         updatedAt: new Date(),
       });
 
-      LOG.info("Join request submitted", { publicKey, signed: !!signature });
+      log.debug("publicKey", publicKey);
+      log.debug("signed", !!signature);
+      log.event("join request submitted");
 
       ctx.response.status = Status.OK;
       ctx.response.body = {
@@ -212,9 +218,7 @@ export function createPostJoinRequestHandler(
         ctx.response.status = Status.BadRequest;
         ctx.response.body = { message: "Invalid request body" };
       } else {
-        LOG.error("Failed to create join request", {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        log.error(error, "failed to create join request");
         ctx.response.status = Status.InternalServerError;
         ctx.response.body = { message: "Failed to submit join request" };
       }

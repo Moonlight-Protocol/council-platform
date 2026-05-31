@@ -5,7 +5,7 @@ import { EscrowStatus } from "@/persistence/drizzle/entity/council-escrow.entity
 import { CustodialUserStatus } from "@/persistence/drizzle/entity/custodial-user.entity.ts";
 import { deriveP256PublicKey } from "@/core/service/custody/key-derivation.service.ts";
 import { withSpan } from "@/core/tracing.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 
 const escrowRepo = new CouncilEscrowRepository(drizzleClient);
 const userRepo = new CustodialUserRepository(drizzleClient);
@@ -25,13 +25,21 @@ export function getRecipientUtxos(
   councilId: string,
   recipientAddress: string,
   channelContractId: string,
-  count: number = 1,
+  count: number,
+  deps: { log: Logger },
 ): Promise<{ registered: boolean; publicKeys: string[] }> {
   return withSpan("Escrow.getRecipientUtxos", async (span) => {
+    const log = deps.log.scope("getRecipientUtxos");
+    log.info("getRecipientUtxos");
+    log.debug("councilId", councilId);
+    log.debug("recipientAddress", recipientAddress);
+    log.debug("count", count);
+
     span.setAttribute("council.id", councilId);
     span.setAttribute("channel.contract_id", channelContractId);
     span.setAttribute("utxo.count", count);
 
+    log.event("looking up custodial user");
     const user = await userRepo.findByExternalIdAndChannel(
       recipientAddress,
       channelContractId,
@@ -39,12 +47,12 @@ export function getRecipientUtxos(
 
     if (!user || user.status !== CustodialUserStatus.ACTIVE) {
       span.setAttribute("user.registered", false);
+      log.event("recipient not registered");
       return { registered: false, publicKeys: [] };
     }
 
     span.setAttribute("user.registered", true);
-
-    // Derive requested number of public keys
+    log.event("deriving recipient public keys");
     const publicKeys: string[] = [];
     for (let i = 0; i < Math.min(count, 300); i++) {
       const pk = await deriveP256PublicKey(
@@ -52,10 +60,12 @@ export function getRecipientUtxos(
         channelContractId,
         recipientAddress,
         i,
+        deps,
       );
       publicKeys.push(bytesToHex(pk));
     }
 
+    log.debug("keysDerived", publicKeys.length);
     return { registered: true, publicKeys };
   });
 }
@@ -71,7 +81,13 @@ export function createEscrow(opts: {
   assetCode: string;
   channelContractId: string;
   submittedByProvider: string;
-}): Promise<{ escrowId: string }> {
+}, deps: { log: Logger }): Promise<{ escrowId: string }> {
+  const log = deps.log.scope("createEscrow");
+  log.info("createEscrow");
+  log.debug("councilId", opts.councilId);
+  log.debug("recipientAddress", opts.recipientAddress);
+  log.debug("amount", opts.amount.toString());
+
   return withSpan("Escrow.create", async (span) => {
     span.setAttribute("council.id", opts.councilId);
     span.setAttribute("channel.contract_id", opts.channelContractId);
@@ -97,12 +113,9 @@ export function createEscrow(opts: {
     });
 
     span.setAttribute("escrow.id", escrow.id);
-    LOG.info("Escrow created", {
-      escrowId: escrow.id,
-      recipient: opts.recipientAddress,
-      amount: opts.amount.toString(),
-      channel: opts.channelContractId,
-    });
+    log.debug("escrowId", escrow.id);
+    log.debug("channelContractId", opts.channelContractId);
+    log.event("escrow created");
 
     return { escrowId: escrow.id };
   });
@@ -111,7 +124,10 @@ export function createEscrow(opts: {
 /**
  * Get escrow summary for a recipient.
  */
-export function getEscrowSummary(recipientAddress: string): Promise<{
+export function getEscrowSummary(
+  recipientAddress: string,
+  deps: { log: Logger },
+): Promise<{
   pendingCount: number;
   pendingTotal: bigint;
   escrows: Array<{
@@ -123,10 +139,16 @@ export function getEscrowSummary(recipientAddress: string): Promise<{
   }>;
 }> {
   return withSpan("Escrow.getSummary", async (span) => {
+    const log = deps.log.scope("getEscrowSummary");
+    log.info("getEscrowSummary");
+    log.debug("recipientAddress", recipientAddress);
+
+    log.event("fetching held escrows");
     const held = await escrowRepo.findHeldForRecipient(recipientAddress);
     const pendingTotal = held.reduce((sum, e) => sum + e.amount, 0n);
     span.setAttribute("escrow.pending_count", held.length);
     span.setAttribute("escrow.pending_total", pendingTotal.toString());
+    log.debug("pendingCount", held.length);
 
     return {
       pendingCount: held.length,
@@ -155,11 +177,17 @@ export function getEscrowSummary(recipientAddress: string): Promise<{
 export function releaseEscrowsForRecipient(
   recipientAddress: string,
   channelContractId: string,
+  deps: { log: Logger },
 ): Promise<{
   released: number;
   totalReleased: bigint;
   totalFees: bigint;
 }> {
+  const log = deps.log.scope("releaseEscrowsForRecipient");
+  log.info("releaseEscrowsForRecipient");
+  log.debug("recipientAddress", recipientAddress);
+  log.debug("channelContractId", channelContractId);
+
   return withSpan("Escrow.releaseForRecipient", async (span) => {
     span.setAttribute("channel.contract_id", channelContractId);
 
@@ -212,12 +240,10 @@ export function releaseEscrowsForRecipient(
     span.setAttribute("escrow.total_released", totalReleased.toString());
     span.setAttribute("escrow.total_fees", totalFees.toString());
 
-    LOG.info("Escrows released for recipient", {
-      recipient: recipientAddress,
-      released: held.length,
-      totalReleased: totalReleased.toString(),
-      totalFees: totalFees.toString(),
-    });
+    log.debug("released", held.length);
+    log.debug("totalReleased", totalReleased.toString());
+    log.debug("totalFees", totalFees.toString());
+    log.event("escrows released for recipient");
 
     return {
       released: held.length,

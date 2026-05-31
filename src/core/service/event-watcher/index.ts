@@ -1,7 +1,7 @@
 import { CHALLENGE_TTL } from "@/config/env.ts";
 import { EventWatcher } from "./event-watcher.process.ts";
 import { setChallengeTtlMs } from "@/core/service/auth/council-auth.ts";
-import { LOG } from "@/config/logger.ts";
+import type { Logger } from "@/utils/logger/index.ts";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
@@ -36,15 +36,14 @@ const DB_SYNC_INTERVAL_MS = 5_000;
 const activeWatchers = new Map<string, EventWatcher>(); // councilId → watcher
 let dbSyncTimer: number | null = null;
 
-function makeHandler(councilId: string) {
+function makeHandler(councilId: string, log: Logger) {
   return async (event: { type: string; address: string; ledger: number }) => {
     switch (event.type) {
       case "provider_added": {
-        LOG.info("Provider added on-chain", {
-          councilId,
-          address: event.address,
-          ledger: event.ledger,
-        });
+        log.debug("councilId", councilId);
+        log.debug("address", event.address);
+        log.debug("ledger", event.ledger);
+        log.event("provider added on-chain");
 
         const existing = await providerRepo.findByPublicKey(
           councilId,
@@ -57,10 +56,7 @@ function makeHandler(councilId: string) {
               registeredByEvent: `ledger:${event.ledger}`,
               removedByEvent: null,
             });
-            LOG.info("Provider re-activated", {
-              councilId,
-              address: event.address,
-            });
+            log.event("provider re-activated");
           }
         } else {
           await providerRepo.create({
@@ -72,20 +68,16 @@ function makeHandler(councilId: string) {
             createdAt: new Date(),
             updatedAt: new Date(),
           });
-          LOG.info("Provider registered", {
-            councilId,
-            address: event.address,
-          });
+          log.event("provider registered");
         }
         break;
       }
 
       case "provider_removed": {
-        LOG.info("Provider removed on-chain", {
-          councilId,
-          address: event.address,
-          ledger: event.ledger,
-        });
+        log.debug("councilId", councilId);
+        log.debug("address", event.address);
+        log.debug("ledger", event.ledger);
+        log.event("provider removed on-chain");
 
         const provider = await providerRepo.findByPublicKey(
           councilId,
@@ -96,79 +88,77 @@ function makeHandler(councilId: string) {
             status: ProviderStatus.REMOVED,
             removedByEvent: `ledger:${event.ledger}`,
           });
-          LOG.info("Provider marked as removed", {
-            councilId,
-            address: event.address,
-          });
+          log.event("provider marked as removed");
         }
         break;
       }
 
       case "contract_initialized": {
-        LOG.info("Channel Auth contract initialized", {
-          councilId,
-          address: event.address,
-          ledger: event.ledger,
-        });
+        log.debug("councilId", councilId);
+        log.debug("address", event.address);
+        log.debug("ledger", event.ledger);
+        log.event("channel auth contract initialized");
         break;
       }
     }
   };
 }
 
-async function ensureWatcher(councilId: string): Promise<void> {
+async function ensureWatcher(
+  councilId: string,
+  deps: { log: Logger },
+): Promise<void> {
   if (activeWatchers.has(councilId)) return;
 
-  const watcher = new EventWatcher({ contractId: councilId });
-  watcher.onEvent(makeHandler(councilId));
+  const log = deps.log.scope("eventWatcher");
+  const watcher = new EventWatcher({ contractId: councilId, log: deps.log });
+  watcher.onEvent(makeHandler(councilId, log));
 
   try {
     await watcher.start();
   } catch (err) {
-    LOG.error("Failed to start event watcher", {
-      councilId,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    log.debug("councilId", councilId);
+    log.error(err, "failed to start event watcher");
     return;
   }
 
   activeWatchers.set(councilId, watcher);
-  LOG.info("Started event watcher for council", { councilId });
+  log.debug("councilId", councilId);
+  log.event("started event watcher for council");
 }
 
 /**
  * Loads all councils from the DB and starts a watcher for any that don't
  * have one yet. Called once at boot and then periodically by startEventWatcher.
  */
-async function syncWatchersFromDb(): Promise<void> {
+async function syncWatchersFromDb(deps: { log: Logger }): Promise<void> {
+  const log = deps.log.scope("eventWatcher");
   try {
     const councils = await metadataRepo.listAll();
     for (const council of councils) {
       if (!activeWatchers.has(council.id)) {
-        await ensureWatcher(council.id);
+        await ensureWatcher(council.id, deps);
       }
     }
   } catch (err) {
-    LOG.warn("Failed to sync event watchers from DB", {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    log.error(err, "failed to sync event watchers from DB");
   }
 }
 
-export async function startEventWatcher(): Promise<void> {
-  await syncWatchersFromDb();
-  LOG.info("Event watcher service started", {
-    initialWatchers: activeWatchers.size,
-    syncIntervalMs: DB_SYNC_INTERVAL_MS,
-  });
+export async function startEventWatcher(
+  deps: { log: Logger },
+): Promise<void> {
+  const log = deps.log.scope("eventWatcher");
+  await syncWatchersFromDb(deps);
+  log.debug("initialWatchers", activeWatchers.size);
+  log.debug("syncIntervalMs", DB_SYNC_INTERVAL_MS);
+  log.event("event watcher service started");
 
   // Periodically pick up newly-created councils. Handlers don't notify the
   // watcher directly — they just write to the DB and we discover them here.
   dbSyncTimer = setInterval(() => {
-    syncWatchersFromDb().catch((err) => {
-      LOG.error("DB sync tick failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+    syncWatchersFromDb(deps).catch((err) => {
+      log.error(err, "DB sync tick failed");
     });
   }, DB_SYNC_INTERVAL_MS) as unknown as number;
 }

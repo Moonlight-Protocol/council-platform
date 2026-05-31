@@ -4,6 +4,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/service/custody.service.test.ts
  */
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
+import { newNoop } from "@/utils/logger/index.ts";
 import {
   CustodialUserStatus,
   ensureInitialized,
@@ -37,7 +38,7 @@ Deno.test("registerCustodialUser - creates user and returns derived key", async 
     councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
-  });
+  }, { log: newNoop() });
 
   assertExists(result.userId);
   assertExists(result.p256PublicKeyHex);
@@ -52,13 +53,13 @@ Deno.test("registerCustodialUser - returns existing user for duplicate registrat
     councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
-  });
+  }, { log: newNoop() });
 
   const second = await registerCustodialUser({
     councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
-  });
+  }, { log: newNoop() });
 
   assertEquals(first.userId, second.userId);
   assertEquals(first.p256PublicKeyHex, second.p256PublicKeyHex);
@@ -74,13 +75,13 @@ Deno.test("getUserPublicKeys - returns derived keys at specified indices", async
     councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
-  });
+  }, { log: newNoop() });
 
   const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
     0,
     1,
     2,
-  ]);
+  ], { log: newNoop() });
   assertEquals(keys.length, 3);
 
   for (const key of keys) {
@@ -96,18 +97,18 @@ Deno.test("getUserPublicKeys - returns consistent keys for same inputs", async (
     councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
-  });
+  }, { log: newNoop() });
 
   const first = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
     0,
     5,
     10,
-  ]);
+  ], { log: newNoop() });
   const second = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
     0,
     5,
     10,
-  ]);
+  ], { log: newNoop() });
 
   assertEquals(first, second);
 });
@@ -120,12 +121,12 @@ Deno.test("getUserPublicKeys - returns different keys for different indices", as
     councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
-  });
+  }, { log: newNoop() });
 
   const keys = await getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [
     0,
     1,
-  ]);
+  ], { log: newNoop() });
   assertEquals(keys.length, 2);
   // Keys at different indices must differ
   assertEquals(keys[0] !== keys[1], true);
@@ -135,7 +136,10 @@ Deno.test("getUserPublicKeys - throws for unregistered user", async () => {
   await setupCouncil();
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, "nonexistent-user", CONTRACT_ID, [0]),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, "nonexistent-user", CONTRACT_ID, [0], {
+        log: newNoop(),
+      }),
     Error,
     "User not registered for this channel",
   );
@@ -152,7 +156,10 @@ Deno.test("getUserPublicKeys - throws for suspended user", async () => {
   });
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0]),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [0], {
+        log: newNoop(),
+      }),
     Error,
     "User account is suspended",
   );
@@ -166,16 +173,22 @@ Deno.test("getUserPublicKeys - throws for out-of-range indices", async () => {
     councilId: COUNCIL_ID,
     externalId,
     channelContractId: CONTRACT_ID,
-  });
+  }, { log: newNoop() });
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [300]),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [300], {
+        log: newNoop(),
+      }),
     Error,
     "out of range",
   );
 
   await assertRejects(
-    () => getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [-1]),
+    () =>
+      getUserPublicKeys(COUNCIL_ID, externalId, CONTRACT_ID, [-1], {
+        log: newNoop(),
+      }),
     Error,
     "out of range",
   );
