@@ -1,4 +1,4 @@
-import { NetworkConfig, NetworkProviders } from "@colibri/core";
+import { NetworkConfig } from "@colibri/core";
 import * as E from "@/config/error.ts";
 import { loadOptionalEnv } from "@/utils/env/loadEnv.ts";
 
@@ -20,11 +20,19 @@ export function selectNetwork(envNetwork: string): {
         NETWORK: "Public Global Stellar Network ; September 2015",
       };
     }
-    case "testnet":
+    case "testnet": {
+      const rpcUrl = loadOptionalEnv("STELLAR_RPC_URL") ??
+        "https://soroban-testnet.stellar.org";
       return {
-        NETWORK_CONFIG: NetworkProviders.Nodies.TestNet(),
+        NETWORK_CONFIG: NetworkConfig.CustomNet({
+          networkPassphrase: "Test SDF Network ; September 2015",
+          rpcUrl,
+          horizonUrl: "https://horizon-testnet.stellar.org",
+          allowHttp: false,
+        }),
         NETWORK: "Test SDF Network ; September 2015",
       };
+    }
     case "local": {
       const rpcUrl = loadOptionalEnv("STELLAR_RPC_URL") ??
         "http://localhost:8000/soroban/rpc";
