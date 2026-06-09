@@ -1,9 +1,9 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "@/persistence/drizzle/entity/index.ts";
-import { DATABASE_URL } from "@/config/env.ts";
+import { DATABASE_URL, POSTGRES_POOL_MAX } from "@/config/env.ts";
 
-const client = postgres(DATABASE_URL);
+const client = postgres(DATABASE_URL, { max: POSTGRES_POOL_MAX });
 
 const drizzleClient = drizzle({ client, schema });
 
