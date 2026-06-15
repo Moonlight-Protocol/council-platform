@@ -6,6 +6,10 @@ import { KnownAssetRepository } from "@/persistence/drizzle/repository/known-ass
 import { queryChannelState } from "@/core/service/channel/channel-state.service.ts";
 import { requireCouncilId, requireCouncilOwnership } from "./helpers.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
+import {
+  ChannelPendingAction,
+  ChannelStatus,
+} from "@/persistence/drizzle/entity/council-channel.entity.ts";
 import type { Logger } from "@/utils/logger/index.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
@@ -20,6 +24,8 @@ function formatChannel(
     assetCode: string;
     assetContractId: string | null;
     label: string | null;
+    status: string;
+    pendingAction: string | null;
     totalDeposited: bigint | null;
     totalWithdrawn: bigint | null;
     utxoCount: bigint | null;
@@ -32,6 +38,9 @@ function formatChannel(
     assetCode: ch.assetCode,
     assetContractId: ch.assetContractId,
     label: ch.label,
+    // Confirmed on-chain lifecycle status + optimistic pending marker.
+    status: ch.status,
+    pendingAction: ch.pendingAction,
     state: {
       totalDeposited: ch.totalDeposited?.toString() ?? null,
       totalWithdrawn: ch.totalWithdrawn?.toString() ?? null,
@@ -294,18 +303,28 @@ export function handleRemoveChannel(
         return;
       }
 
-      await channelRepo.update(id, { deletedAt: new Date() });
+      // Record the council's intent ONLY. The authoritative `status` flip to
+      // "disabled" is written by the event-watcher when the quorum-authorized
+      // disable_channel call is confirmed on-chain — never here (no optimistic
+      // authoritative write). The on-chain quorum tx is signed client-side.
+      const updated = await channelRepo.setPendingAction(
+        id,
+        ChannelPendingAction.DISABLE,
+      );
 
       log.debug("id", id);
       log.debug("channelContractId", channel.channelContractId);
-      log.event("channel disabled");
+      log.event("channel disable requested (pending on-chain confirmation)");
 
-      ctx.response.status = Status.OK;
-      ctx.response.body = { message: "Channel disabled" };
+      ctx.response.status = Status.Accepted;
+      ctx.response.body = {
+        message: "Channel disable requested; pending on-chain confirmation",
+        data: formatChannel(updated),
+      };
     } catch (error) {
-      log.error(error, "failed to disable channel");
+      log.error(error, "failed to request channel disable");
       ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to disable channel" };
+      ctx.response.body = { message: "Failed to request channel disable" };
     }
   };
 }
@@ -328,7 +347,7 @@ export function handleEnableChannel(
       }
 
       const channel = await channelRepo.findByIdIncludeDeleted(id);
-      if (!channel || !channel.deletedAt) {
+      if (!channel || channel.status !== ChannelStatus.DISABLED) {
         ctx.response.status = Status.NotFound;
         ctx.response.body = { message: "Disabled channel not found" };
         return;
@@ -340,21 +359,27 @@ export function handleEnableChannel(
         return;
       }
 
-      await channelRepo.restore(id);
+      // Intent only — the watcher flips `status` back to "enabled" once the
+      // quorum-authorized enable_channel call is confirmed on-chain. Re-enable
+      // reuses the same on-chain enable action.
+      const updated = await channelRepo.setPendingAction(
+        id,
+        ChannelPendingAction.ENABLE,
+      );
 
       log.debug("id", id);
       log.debug("channelContractId", channel.channelContractId);
-      log.event("channel re-enabled");
+      log.event("channel re-enable requested (pending on-chain confirmation)");
 
-      ctx.response.status = Status.OK;
+      ctx.response.status = Status.Accepted;
       ctx.response.body = {
-        message: "Channel re-enabled",
-        data: formatChannel({ ...channel, deletedAt: null } as typeof channel),
+        message: "Channel re-enable requested; pending on-chain confirmation",
+        data: formatChannel(updated),
       };
     } catch (error) {
-      log.error(error, "failed to re-enable channel");
+      log.error(error, "failed to request channel re-enable");
       ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to re-enable channel" };
+      ctx.response.body = { message: "Failed to request channel re-enable" };
     }
   };
 }

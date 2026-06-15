@@ -1,6 +1,9 @@
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { BaseRepository } from "@/persistence/drizzle/repository/base.repository.ts";
 import {
+  type ChannelPendingActionValue,
+  ChannelStatus,
+  type ChannelStatusValue,
   type CouncilChannel,
   councilChannel,
   type NewCouncilChannel,
@@ -54,10 +57,52 @@ export class CouncilChannelRepository extends BaseRepository<
       .where(
         and(
           eq(councilChannel.councilId, councilId),
-          isNotNull(councilChannel.deletedAt),
+          isNull(councilChannel.deletedAt),
+          eq(councilChannel.status, ChannelStatus.DISABLED),
         ),
       )
       .orderBy(councilChannel.createdAt);
+  }
+
+  /**
+   * Authoritative status write — the ONLY path that mutates `status`. Called by
+   * the event-watcher when a ChannelStateChanged event is confirmed on-chain.
+   * Clears any optimistic `pendingAction` marker. Scoped by council so a
+   * channel id reused across councils can't be cross-written. Returns the
+   * updated row, or undefined if no matching channel exists.
+   */
+  async setStatusByContractId(
+    councilId: string,
+    contractId: string,
+    status: ChannelStatusValue,
+  ): Promise<CouncilChannel | undefined> {
+    const [result] = await this.db
+      .update(councilChannel)
+      .set({ status, pendingAction: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(councilChannel.councilId, councilId),
+          eq(councilChannel.channelContractId, contractId),
+        ),
+      )
+      .returning();
+    return result;
+  }
+
+  /**
+   * Sets the optimistic UX-only `pendingAction` marker. Never touches `status`
+   * (that is the watcher's job). Used by the enable/disable endpoints.
+   */
+  async setPendingAction(
+    id: string,
+    action: ChannelPendingActionValue | null,
+  ): Promise<CouncilChannel> {
+    const [result] = await this.db
+      .update(councilChannel)
+      .set({ pendingAction: action, updatedAt: new Date() })
+      .where(eq(councilChannel.id, id))
+      .returning();
+    return result;
   }
 
   async findByContractIdIncludeDeleted(
@@ -79,15 +124,6 @@ export class CouncilChannelRepository extends BaseRepository<
       .from(councilChannel)
       .where(eq(councilChannel.id, id))
       .limit(1);
-    return result;
-  }
-
-  async restore(id: string): Promise<CouncilChannel> {
-    const [result] = await this.db
-      .update(councilChannel)
-      .set({ deletedAt: null, updatedAt: new Date() })
-      .where(eq(councilChannel.id, id))
-      .returning();
     return result;
   }
 }

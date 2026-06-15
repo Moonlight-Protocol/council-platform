@@ -58,6 +58,9 @@ async function returnCouncilSummary(
         assetCode: ch.assetCode,
         assetContractId: ch.assetContractId,
         label: ch.label,
+        // Confirmed on-chain status so providers converge on disabled channels
+        // (withdraw-only) rather than treating them as absent.
+        status: ch.status,
       })),
       providers: providers.map((p) => {
         let parsedJurisdictions: string[] | null = null;
@@ -130,6 +133,7 @@ export function buildPublicRouter(deps: { log: Logger }): Router {
               assetCode: ch.assetCode,
               assetContractId: ch.assetContractId,
               label: ch.label,
+              status: ch.status,
             })),
             providers: providers.map((p) => {
               let parsedJurisdictions: string[] | null = null;
@@ -207,6 +211,7 @@ export function buildPublicRouter(deps: { log: Logger }): Router {
           assetCode: ch.assetCode,
           assetContractId: ch.assetContractId,
           label: ch.label,
+          status: ch.status,
         })),
       };
     } catch (error) {

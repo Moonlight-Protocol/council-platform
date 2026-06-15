@@ -8,11 +8,13 @@ import { newNoop } from "@/utils/logger/index.ts";
 import { createMockContext } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
+  drizzleClient,
   ensureInitialized,
   resetDb,
   seedChannel,
   seedCouncilMetadata,
 } from "../../test_helpers.ts";
+import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
 
 import {
   handleAddChannel,
@@ -22,6 +24,17 @@ import {
   handleListDisabledChannels,
   handleRemoveChannel,
 } from "@/http/v1/council/channels.ts";
+
+// Simulates the event-watcher confirming an on-chain ChannelStateChanged event —
+// the ONLY path that flips authoritative status. HTTP endpoints set pending only.
+const channelRepo = new CouncilChannelRepository(drizzleClient);
+function confirmOnChain(contractId: string, enabled: boolean) {
+  return channelRepo.setStatusByContractId(
+    "default",
+    contractId,
+    enabled ? "enabled" : "disabled",
+  );
+}
 
 const adminState = {
   session: {
@@ -184,7 +197,7 @@ Deno.test("GET /council/channels/:id - returns 404 for non-existent", async () =
 // DELETE /council/channels/:id (disable)
 // ---------------------------------------------------------------------------
 
-Deno.test("DELETE /council/channels/:id - disables channel", async () => {
+Deno.test("DELETE /council/channels/:id - requests disable (pending, not authoritative)", async () => {
   await ensureInitialized();
   await resetDb();
   await seedCouncilMetadata();
@@ -199,8 +212,16 @@ Deno.test("DELETE /council/channels/:id - disables channel", async () => {
   await handleRemoveChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
-  assertEquals(res.status, 200);
-  assertEquals(res.body.message, "Channel disabled");
+  // 202: intent recorded, awaiting on-chain confirmation. The endpoint sets the
+  // optimistic marker but must NOT flip authoritative status.
+  assertEquals(res.status, 202);
+  assertEquals(res.body.data.pendingAction, "disable");
+  assertEquals(res.body.data.status, "enabled");
+
+  // DB confirms status is untouched until the watcher confirms the chain.
+  const stored = await channelRepo.findById(channel.id);
+  assertEquals(stored?.status, "enabled");
+  assertEquals(stored?.pendingAction, "disable");
 });
 
 // ---------------------------------------------------------------------------
@@ -214,15 +235,16 @@ Deno.test("POST /council/channels/:id/enable - re-enables disabled channel", asy
 
   const channel = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
 
-  // First disable it
+  // Disable request + simulated on-chain confirmation (the watcher's write).
   const disableCtx = createMockContext({
     method: "DELETE",
     params: { id: channel.id },
     state: { ...adminState },
   });
   await handleRemoveChannel({ log: newNoop() })(disableCtx.ctx);
+  await confirmOnChain(channel.channelContractId, false);
 
-  // Then re-enable
+  // Then re-enable — endpoint records intent for the now-disabled channel.
   const { ctx, getResponse } = createMockContext({
     method: "POST",
     params: { id: channel.id },
@@ -231,8 +253,10 @@ Deno.test("POST /council/channels/:id/enable - re-enables disabled channel", asy
   await handleEnableChannel({ log: newNoop() })(ctx);
 
   const res = getResponse();
-  assertEquals(res.status, 200);
-  assertEquals(res.body.message, "Channel re-enabled");
+  assertEquals(res.status, 202);
+  assertEquals(res.body.data.pendingAction, "enable");
+  // Authoritative status is still disabled until the chain confirms re-enable.
+  assertEquals(res.body.data.status, "disabled");
 });
 
 // ---------------------------------------------------------------------------
@@ -247,13 +271,14 @@ Deno.test("GET /council/channels/disabled - lists disabled channels", async () =
   const ch = await seedChannel({ channelContractId: TEST_CONTRACT_ID });
   await seedChannel({ channelContractId: TEST_CONTRACT_ID_2 });
 
-  // Disable one
+  // Disable one and confirm it on-chain (the watcher's authoritative write).
   const disableCtx = createMockContext({
     method: "DELETE",
     params: { id: ch.id },
     state: { ...adminState },
   });
   await handleRemoveChannel({ log: newNoop() })(disableCtx.ctx);
+  await confirmOnChain(ch.channelContractId, false);
 
   const { ctx, getResponse } = createMockContext({
     method: "GET",
@@ -266,6 +291,7 @@ Deno.test("GET /council/channels/disabled - lists disabled channels", async () =
   assertEquals(res.status, 200);
   assertEquals(res.body.data.length, 1);
   assertEquals(res.body.data[0].channelContractId, TEST_CONTRACT_ID);
+  assertEquals(res.body.data[0].status, "disabled");
 });
 
 // ---------------------------------------------------------------------------
