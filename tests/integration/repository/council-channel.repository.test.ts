@@ -81,7 +81,7 @@ Deno.test("listAll - returns only non-deleted channels", async () => {
   assertEquals(all[0].id, ch1.id);
 });
 
-Deno.test("listDisabled - returns only soft-deleted channels", async () => {
+Deno.test("listDisabled - returns channels with disabled status", async () => {
   await ensureInitialized();
   await resetDb();
 
@@ -93,48 +93,106 @@ Deno.test("listDisabled - returns only soft-deleted channels", async () => {
     channelContractId:
       "CDIS2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
   });
-  await repo.delete(ch1.id);
+  // Disable via the authoritative status write (what the watcher does).
+  await repo.setStatusByContractId(
+    "default",
+    ch1.channelContractId,
+    "disabled",
+  );
 
   const disabled = await repo.listDisabled("default");
   assertEquals(disabled.length, 1);
   assertEquals(disabled[0].id, ch1.id);
+  assertEquals(disabled[0].status, "disabled");
 });
 
-Deno.test("findByIdIncludeDeleted - returns soft-deleted records", async () => {
+Deno.test("listAll - includes disabled (not soft-deleted) channels with status", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const ch1 = await seedChannel({
+    channelContractId:
+      "CLAL1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+  });
+  await repo.setStatusByContractId(
+    "default",
+    ch1.channelContractId,
+    "disabled",
+  );
+
+  // Disabled channels stay visible to providers via listAll (not hidden).
+  const all = await repo.listAll("default");
+  assertEquals(all.length, 1);
+  assertEquals(all[0].status, "disabled");
+});
+
+Deno.test("setPendingAction - sets optimistic marker without changing status", async () => {
   await ensureInitialized();
   await resetDb();
 
   const channel = await seedChannel();
-  await repo.delete(channel.id);
+  assertEquals(channel.status, "enabled");
+
+  const updated = await repo.setPendingAction(channel.id, "disable");
+  // status is unchanged — only the watcher may write it.
+  assertEquals(updated.status, "enabled");
+  assertEquals(updated.pendingAction, "disable");
+});
+
+Deno.test("setStatusByContractId - flips status and clears pendingAction", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const channel = await seedChannel();
+  await repo.setPendingAction(channel.id, "disable");
+
+  const updated = await repo.setStatusByContractId(
+    "default",
+    channel.channelContractId,
+    "disabled",
+  );
+  assertExists(updated);
+  assertEquals(updated.status, "disabled");
+  assertEquals(updated.pendingAction, null);
+
+  // Re-enable path: status flips back, marker cleared again.
+  await repo.setPendingAction(channel.id, "enable");
+  const reEnabled = await repo.setStatusByContractId(
+    "default",
+    channel.channelContractId,
+    "enabled",
+  );
+  assertExists(reEnabled);
+  assertEquals(reEnabled.status, "enabled");
+  assertEquals(reEnabled.pendingAction, null);
+});
+
+Deno.test("setStatusByContractId - is scoped by council", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const channel = await seedChannel();
+  const result = await repo.setStatusByContractId(
+    "other-council",
+    channel.channelContractId,
+    "disabled",
+  );
+  assertEquals(result, undefined);
+});
+
+Deno.test("findByIdIncludeDeleted - returns records regardless of status", async () => {
+  await ensureInitialized();
+  await resetDb();
+
+  const channel = await seedChannel();
+  await repo.setStatusByContractId(
+    "default",
+    channel.channelContractId,
+    "disabled",
+  );
 
   const found = await repo.findByIdIncludeDeleted(channel.id);
   assertExists(found);
   assertEquals(found.id, channel.id);
-  assertExists(found.deletedAt);
-});
-
-Deno.test("restore - clears deletedAt", async () => {
-  await ensureInitialized();
-  await resetDb();
-
-  const channel = await seedChannel();
-  await repo.delete(channel.id);
-
-  // Verify deleted
-  const deleted = await repo.findByContractId(
-    "default",
-    channel.channelContractId,
-  );
-  assertEquals(deleted, undefined);
-
-  // Restore
-  await repo.restore(channel.id);
-
-  // Verify restored
-  const restored = await repo.findByContractId(
-    "default",
-    channel.channelContractId,
-  );
-  assertExists(restored);
-  assertEquals(restored.deletedAt, null);
+  assertEquals(found.status, "disabled");
 });

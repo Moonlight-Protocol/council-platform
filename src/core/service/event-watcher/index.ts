@@ -5,13 +5,17 @@ import type { Logger } from "@/utils/logger/index.ts";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
+import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
 import { ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
+import { ChannelStatus } from "@/persistence/drizzle/entity/council-channel.entity.ts";
+import type { ChannelAuthEvent } from "./event-watcher.types.ts";
 
 // Wire env CHALLENGE_TTL (seconds) to council auth (ms)
 setChallengeTtlMs(CHALLENGE_TTL * 1000);
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
 const providerRepo = new CouncilProviderRepository(drizzleClient);
+const channelRepo = new CouncilChannelRepository(drizzleClient);
 
 /**
  * Multi-council event watcher.
@@ -37,7 +41,7 @@ const activeWatchers = new Map<string, EventWatcher>(); // councilId → watcher
 let dbSyncTimer: number | null = null;
 
 function makeHandler(councilId: string, log: Logger) {
-  return async (event: { type: string; address: string; ledger: number }) => {
+  return async (event: ChannelAuthEvent) => {
     switch (event.type) {
       case "provider_added": {
         log.debug("councilId", councilId);
@@ -89,6 +93,34 @@ function makeHandler(councilId: string, log: Logger) {
             removedByEvent: `ledger:${event.ledger}`,
           });
           log.event("provider marked as removed");
+        }
+        break;
+      }
+
+      case "channel_state_changed": {
+        // SOLE authoritative writer of channel status. The DB only ever reflects
+        // CONFIRMED on-chain state — never written ahead of the chain. Any
+        // optimistic pendingAction marker is cleared here on confirmation.
+        const channel = event.channel ?? event.address;
+        const status = event.enabled
+          ? ChannelStatus.ENABLED
+          : ChannelStatus.DISABLED;
+        log.debug("councilId", councilId);
+        log.debug("channel", channel);
+        log.debug("asset", event.asset ?? "");
+        log.debug("ledger", event.ledger);
+        log.debug("status", status);
+        log.event("channel state changed on-chain");
+
+        const updated = await channelRepo.setStatusByContractId(
+          councilId,
+          channel,
+          status,
+        );
+        if (updated) {
+          log.event("channel status reconciled from chain");
+        } else {
+          log.event("channel state event for unknown channel (ignored)");
         }
         break;
       }

@@ -43,6 +43,13 @@
       "when": 1779379200000,
       "tag": "0005_add_provider_jurisdictions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781913600000,
+      "tag": "0006_add_channel_status",
+      "breakpoints": true
     }
   ]
 }
