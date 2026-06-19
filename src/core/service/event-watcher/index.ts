@@ -1,11 +1,16 @@
-import { CHALLENGE_TTL } from "@/config/env.ts";
-import { EventWatcher } from "./event-watcher.process.ts";
+import {
+  BOOT_SYNC_START_LEDGER_BLOCK,
+  CHALLENGE_TTL,
+  NETWORK_RPC_SERVER,
+} from "@/config/env.ts";
+import { type CommitPoll, EventWatcher } from "./event-watcher.process.ts";
 import { setChallengeTtlMs } from "@/core/service/auth/council-auth.ts";
 import type { Logger } from "@/utils/logger/index.ts";
 import { drizzleClient } from "@/persistence/drizzle/config.ts";
 import { CouncilMetadataRepository } from "@/persistence/drizzle/repository/council-metadata.repository.ts";
 import { CouncilProviderRepository } from "@/persistence/drizzle/repository/council-provider.repository.ts";
 import { CouncilChannelRepository } from "@/persistence/drizzle/repository/council-channel.repository.ts";
+import { WatcherCursorRepository } from "@/persistence/drizzle/repository/watcher-cursor.repository.ts";
 import { ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
 import { ChannelStatus } from "@/persistence/drizzle/entity/council-channel.entity.ts";
 import type { ChannelAuthEvent } from "./event-watcher.types.ts";
@@ -14,25 +19,23 @@ import type { ChannelAuthEvent } from "./event-watcher.types.ts";
 setChallengeTtlMs(CHALLENGE_TTL * 1000);
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
-const providerRepo = new CouncilProviderRepository(drizzleClient);
-const channelRepo = new CouncilChannelRepository(drizzleClient);
 
 /**
  * Multi-council event watcher.
  *
  * Each council's `id` IS the channel auth contract ID. The service polls the
  * DB periodically for councils that don't yet have a watcher and starts one.
- * Per-council watchers are persistent and use a ledger lookback so they don't
- * miss events emitted between council creation and watcher startup.
+ * Per-council watchers are persistent and hold a durable Postgres cursor,
+ * advanced atomically with each poll's writes.
  *
- * Events update the council_providers table for the corresponding council:
+ * Events update the council tables for the corresponding council:
  *   - provider_added → upsert ACTIVE provider for that council
  *   - provider_removed → mark provider REMOVED for that council
+ *   - channel_state_changed → reconcile council_channels.status from chain
  *
- * Design note: handlers (e.g., putMetadataHandler) DO NOT trigger watcher
- * creation directly. They only write to the DB; the watcher service picks up
- * the new council on its next sync tick. This keeps handlers free of async
- * side effects and makes them trivially testable.
+ * Design note: handlers DO NOT trigger watcher creation directly. They only
+ * write to the DB; the watcher service picks up the new council on its next
+ * sync tick. This keeps handlers free of async side effects.
  */
 
 const DB_SYNC_INTERVAL_MS = 5_000;
@@ -40,100 +43,130 @@ const DB_SYNC_INTERVAL_MS = 5_000;
 const activeWatchers = new Map<string, EventWatcher>(); // councilId → watcher
 let dbSyncTimer: number | null = null;
 
-function makeHandler(councilId: string, log: Logger) {
-  return async (event: ChannelAuthEvent) => {
-    switch (event.type) {
-      case "provider_added": {
-        log.debug("councilId", councilId);
-        log.debug("address", event.address);
-        log.debug("ledger", event.ledger);
-        log.event("provider added on-chain");
+/**
+ * Apply a single Channel Auth event to the council tables, using the
+ * transaction-bound repositories passed in so the write joins the poll's atomic
+ * commit.
+ */
+async function applyEvent(
+  councilId: string,
+  event: ChannelAuthEvent,
+  repos: {
+    providerRepo: CouncilProviderRepository;
+    channelRepo: CouncilChannelRepository;
+  },
+  log: Logger,
+): Promise<void> {
+  const { providerRepo, channelRepo } = repos;
+  switch (event.type) {
+    case "provider_added": {
+      log.debug("councilId", councilId);
+      log.debug("address", event.address);
+      log.debug("ledger", event.ledger);
+      log.event("provider added on-chain");
 
-        const existing = await providerRepo.findByPublicKey(
-          councilId,
-          event.address,
-        );
-        if (existing) {
-          if (existing.status === ProviderStatus.REMOVED) {
-            await providerRepo.update(existing.id, {
-              status: ProviderStatus.ACTIVE,
-              registeredByEvent: `ledger:${event.ledger}`,
-              removedByEvent: null,
-            });
-            log.event("provider re-activated");
-          }
-        } else {
-          await providerRepo.create({
-            id: crypto.randomUUID(),
-            councilId,
-            publicKey: event.address,
+      const existing = await providerRepo.findByPublicKey(
+        councilId,
+        event.address,
+      );
+      if (existing) {
+        if (existing.status === ProviderStatus.REMOVED) {
+          await providerRepo.update(existing.id, {
             status: ProviderStatus.ACTIVE,
             registeredByEvent: `ledger:${event.ledger}`,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            removedByEvent: null,
           });
-          log.event("provider registered");
+          log.event("provider re-activated");
         }
-        break;
-      }
-
-      case "provider_removed": {
-        log.debug("councilId", councilId);
-        log.debug("address", event.address);
-        log.debug("ledger", event.ledger);
-        log.event("provider removed on-chain");
-
-        const provider = await providerRepo.findByPublicKey(
+      } else {
+        await providerRepo.create({
+          id: crypto.randomUUID(),
           councilId,
-          event.address,
-        );
-        if (provider) {
-          await providerRepo.update(provider.id, {
-            status: ProviderStatus.REMOVED,
-            removedByEvent: `ledger:${event.ledger}`,
-          });
-          log.event("provider marked as removed");
-        }
-        break;
+          publicKey: event.address,
+          status: ProviderStatus.ACTIVE,
+          registeredByEvent: `ledger:${event.ledger}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        log.event("provider registered");
       }
-
-      case "channel_state_changed": {
-        // SOLE authoritative writer of channel status. The DB only ever reflects
-        // CONFIRMED on-chain state — never written ahead of the chain. Any
-        // optimistic pendingAction marker is cleared here on confirmation.
-        const channel = event.channel ?? event.address;
-        const status = event.enabled
-          ? ChannelStatus.ENABLED
-          : ChannelStatus.DISABLED;
-        log.debug("councilId", councilId);
-        log.debug("channel", channel);
-        log.debug("asset", event.asset ?? "");
-        log.debug("ledger", event.ledger);
-        log.debug("status", status);
-        log.event("channel state changed on-chain");
-
-        const updated = await channelRepo.setStatusByContractId(
-          councilId,
-          channel,
-          status,
-        );
-        if (updated) {
-          log.event("channel status reconciled from chain");
-        } else {
-          log.event("channel state event for unknown channel (ignored)");
-        }
-        break;
-      }
-
-      case "contract_initialized": {
-        log.debug("councilId", councilId);
-        log.debug("address", event.address);
-        log.debug("ledger", event.ledger);
-        log.event("channel auth contract initialized");
-        break;
-      }
+      break;
     }
-  };
+
+    case "provider_removed": {
+      log.debug("councilId", councilId);
+      log.debug("address", event.address);
+      log.debug("ledger", event.ledger);
+      log.event("provider removed on-chain");
+
+      const provider = await providerRepo.findByPublicKey(
+        councilId,
+        event.address,
+      );
+      if (provider) {
+        await providerRepo.update(provider.id, {
+          status: ProviderStatus.REMOVED,
+          removedByEvent: `ledger:${event.ledger}`,
+        });
+        log.event("provider marked as removed");
+      }
+      break;
+    }
+
+    case "channel_state_changed": {
+      // SOLE authoritative writer of channel status. The DB only ever reflects
+      // CONFIRMED on-chain state — never written ahead of the chain. Any
+      // optimistic pendingAction marker is cleared here on confirmation.
+      const channel = event.channel ?? event.address;
+      const status = event.enabled
+        ? ChannelStatus.ENABLED
+        : ChannelStatus.DISABLED;
+      log.debug("councilId", councilId);
+      log.debug("channel", channel);
+      log.debug("asset", event.asset ?? "");
+      log.debug("ledger", event.ledger);
+      log.debug("status", status);
+      log.event("channel state changed on-chain");
+
+      const updated = await channelRepo.setStatusByContractId(
+        councilId,
+        channel,
+        status,
+      );
+      if (updated) {
+        log.event("channel status reconciled from chain");
+      } else {
+        log.event("channel state event for unknown channel (ignored)");
+      }
+      break;
+    }
+
+    case "contract_initialized": {
+      log.debug("councilId", councilId);
+      log.debug("address", event.address);
+      log.debug("ledger", event.ledger);
+      log.event("channel auth contract initialized");
+      break;
+    }
+  }
+}
+
+/**
+ * Build the atomic commit for a council's watcher: apply every event of a poll
+ * and advance the cursor in ONE transaction. A failure rolls back both the
+ * status writes and the cursor advance.
+ */
+function makeCommit(councilId: string, log: Logger): CommitPoll {
+  return (events, nextLedger) =>
+    drizzleClient.transaction(async (tx) => {
+      const providerRepo = new CouncilProviderRepository(tx);
+      const channelRepo = new CouncilChannelRepository(tx);
+      const cursorRepo = new WatcherCursorRepository(tx);
+      for (const event of events) {
+        await applyEvent(councilId, event, { providerRepo, channelRepo }, log);
+      }
+      await cursorRepo.upsert(councilId, nextLedger);
+    });
 }
 
 async function ensureWatcher(
@@ -143,8 +176,15 @@ async function ensureWatcher(
   if (activeWatchers.has(councilId)) return;
 
   const log = deps.log.scope("eventWatcher");
-  const watcher = new EventWatcher({ contractId: councilId, log: deps.log });
-  watcher.onEvent(makeHandler(councilId, log));
+  const watcher = new EventWatcher({
+    contractId: councilId,
+    log: deps.log,
+    rpc: NETWORK_RPC_SERVER,
+    startLedgerBlock: BOOT_SYNC_START_LEDGER_BLOCK,
+    restoreCursor: () =>
+      new WatcherCursorRepository(drizzleClient).get(councilId),
+    commit: makeCommit(councilId, log),
+  });
 
   try {
     await watcher.start();

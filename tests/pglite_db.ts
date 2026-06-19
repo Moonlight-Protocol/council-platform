@@ -61,6 +61,12 @@ const drizzleClientProxy: PGliteDrizzle = new Proxy({} as PGliteDrizzle, {
 export const drizzleClient = drizzleClientProxy;
 export type DrizzleClient = PGliteDrizzle;
 
+/** Mirrors the real config: lets repositories bind to the pool or a tx. */
+export type DrizzleTransaction = Parameters<
+  Parameters<DrizzleClient["transaction"]>[0]
+>[0];
+export type DbOrTx = DrizzleClient | DrizzleTransaction;
+
 export { ensureInitialized };
 
 /**
@@ -79,7 +85,8 @@ export async function resetDb(): Promise<void> {
       council_metadata,
       known_assets,
       wallet_users,
-      waitlist_requests
+      waitlist_requests,
+      watcher_cursor
     CASCADE;
   `);
 }

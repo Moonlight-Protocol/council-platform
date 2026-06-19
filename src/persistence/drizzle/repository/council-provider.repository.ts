@@ -6,14 +6,14 @@ import {
   type NewCouncilProvider,
   ProviderStatus,
 } from "@/persistence/drizzle/entity/council-provider.entity.ts";
-import type { DrizzleClient } from "@/persistence/drizzle/config.ts";
+import type { DbOrTx } from "@/persistence/drizzle/config.ts";
 
 export class CouncilProviderRepository extends BaseRepository<
   typeof councilProvider,
   CouncilProvider,
   NewCouncilProvider
 > {
-  constructor(db: DrizzleClient) {
+  constructor(db: DbOrTx) {
     super(db, councilProvider);
   }
 

@@ -8,14 +8,14 @@ import {
   councilChannel,
   type NewCouncilChannel,
 } from "@/persistence/drizzle/entity/council-channel.entity.ts";
-import type { DrizzleClient } from "@/persistence/drizzle/config.ts";
+import type { DbOrTx } from "@/persistence/drizzle/config.ts";
 
 export class CouncilChannelRepository extends BaseRepository<
   typeof councilChannel,
   CouncilChannel,
   NewCouncilChannel
 > {
-  constructor(db: DrizzleClient) {
+  constructor(db: DbOrTx) {
     super(db, councilChannel);
   }
 

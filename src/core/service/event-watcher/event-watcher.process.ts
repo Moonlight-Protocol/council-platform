@@ -1,57 +1,67 @@
 import type { Logger } from "@/utils/logger/index.ts";
-import { NETWORK_RPC_SERVER } from "@/config/env.ts";
+import type { Server } from "stellar-sdk/rpc";
 import { fetchChannelAuthEvents } from "./event-watcher.service.ts";
 import type {
   ChannelAuthEvent,
   EventWatcherConfig,
 } from "./event-watcher.types.ts";
 import { withSpan } from "@/core/tracing.ts";
+import { resolveBootStartLedger } from "./start-ledger.ts";
 
 const DEFAULT_INTERVAL_MS = 30_000;
 
-// When a watcher starts fresh (no saved cursor), it begins polling from
-// `currentLedger - LOOKBACK_LEDGERS`. This handles the gap between when a
-// council is created and when its watcher actually starts (the watcher
-// service polls the DB for new councils on a periodic interval, not
-// instantly). Without the lookback, provider_added events emitted in that
-// window would be missed.
-//
-// Stellar ledgers are ~5s, so 12 ledgers ≈ 60s of safety margin.
-const LOOKBACK_LEDGERS = 12;
+/**
+ * Applies the events of a single poll AND advances the cursor as one atomic
+ * unit. The watcher only treats a poll as done — and only advances its in-memory
+ * position — once this resolves, so the Postgres state and the cursor can never
+ * diverge: a crash mid-commit rolls back both and the same ledger range is
+ * re-fetched and re-applied (idempotently) on the next poll.
+ */
+export type CommitPoll = (
+  events: ChannelAuthEvent[],
+  nextLedger: number,
+) => Promise<void>;
 
-function cursorKvKey(contractId: string): Deno.KvKey {
-  return ["event-watcher", contractId, "lastLedger"];
-}
+/** Restore this council's persisted cursor, or null if none is stored yet. */
+export type RestoreCursor = () => Promise<number | null>;
 
-export type EventHandler = (event: ChannelAuthEvent) => void | Promise<void>;
-
-interface EventWatcherDeps extends EventWatcherConfig {
+export interface EventWatcherDeps extends EventWatcherConfig {
   log: Logger;
+  rpc: Server;
+  startLedgerBlock: number | null;
+  restoreCursor: RestoreCursor;
+  commit: CommitPoll;
 }
 
 /**
  * EventWatcher polls Stellar RPC for Channel Auth contract events.
  *
- * Unlike provider-platform's watcher (which filters for its own address),
- * council-platform processes ALL events to maintain a complete PP registry.
+ * council-platform is the event-only root source of channel state, so it keeps a
+ * durable cursor — but in Postgres, advanced atomically with the status writes
+ * each poll produces (see `commit`). On a fresh boot with no stored cursor it
+ * syncs all available history from the resolved boot ledger
+ * (see `resolveBootStartLedger`).
  */
 export class EventWatcher {
   private timeoutId: number | null = null;
   private isRunning = false;
   private lastLedger: number | null = null;
   private config: EventWatcherConfig;
-  private handlers: EventHandler[] = [];
-  private kv: Deno.Kv | null = null;
+  private rpc: Server;
+  private startLedgerBlock: number | null;
+  private restoreCursor: RestoreCursor;
+  private commit: CommitPoll;
   private log: Logger;
 
   constructor(deps: EventWatcherDeps) {
-    const { log, ...config } = deps;
+    const { log, rpc, startLedgerBlock, restoreCursor, commit, ...config } =
+      deps;
     this.config = { intervalMs: DEFAULT_INTERVAL_MS, ...config };
+    this.rpc = rpc;
+    this.startLedgerBlock = startLedgerBlock;
+    this.restoreCursor = restoreCursor;
+    this.commit = commit;
     this.log = log.scope("EventWatcher");
-  }
-
-  onEvent(handler: EventHandler): void {
-    this.handlers.push(handler);
   }
 
   async start(): Promise<void> {
@@ -62,24 +72,22 @@ export class EventWatcher {
 
     this.isRunning = true;
 
-    await Deno.mkdir(".data", { recursive: true });
-    this.kv = await Deno.openKv("./.data/memory-kvdb.db");
-
-    const stored = await this.kv.get<number>(
-      cursorKvKey(this.config.contractId),
-    );
-    if (stored.value !== null) {
-      this.lastLedger = stored.value;
+    // Restore the durable Postgres cursor; if absent, resolve the boot start
+    // ledger (oldest available, or the configured override) and sync forward.
+    const stored = await this.restoreCursor();
+    if (stored !== null) {
+      this.lastLedger = stored;
       this.log.debug("contractId", this.config.contractId);
       this.log.debug("startLedger", this.lastLedger);
-      this.log.event("EventWatcher restored cursor from KV");
+      this.log.event("EventWatcher restored cursor from Postgres");
     } else {
-      const latestLedger = await NETWORK_RPC_SERVER.getLatestLedger();
-      this.lastLedger = Math.max(0, latestLedger.sequence - LOOKBACK_LEDGERS);
+      this.lastLedger = await resolveBootStartLedger(
+        this.rpc,
+        this.startLedgerBlock,
+      );
       this.log.debug("contractId", this.config.contractId);
-      this.log.debug("latestLedger", latestLedger.sequence);
       this.log.debug("startLedger", this.lastLedger);
-      this.log.event("EventWatcher initialized from network (no saved cursor)");
+      this.log.event("EventWatcher initialized boot start ledger (no cursor)");
     }
 
     this.scheduleNext();
@@ -91,10 +99,6 @@ export class EventWatcher {
     if (this.timeoutId !== null) {
       clearTimeout(this.timeoutId);
       this.timeoutId = null;
-    }
-    if (this.kv) {
-      this.kv.close();
-      this.kv = null;
     }
     this.log.event("EventWatcher stopped");
   }
@@ -121,7 +125,7 @@ export class EventWatcher {
         if (this.lastLedger === null || !this.isRunning) return;
 
         const { events, latestLedger } = await fetchChannelAuthEvents(
-          NETWORK_RPC_SERVER,
+          this.rpc,
           this.config.contractId,
           this.lastLedger,
           { log: this.log },
@@ -134,20 +138,14 @@ export class EventWatcher {
           this.log.debug("count", events.length);
           this.log.debug("types", events.map((e) => e.type).join(", "));
           this.log.event(`EventWatcher found ${events.length} new event(s)`);
-
-          for (const event of events) {
-            await this.dispatch(event);
-          }
         }
 
-        this.lastLedger = latestLedger + 1;
-
-        if (this.kv) {
-          await this.kv.set(
-            cursorKvKey(this.config.contractId),
-            this.lastLedger,
-          );
-        }
+        // Apply the poll's events and advance the cursor atomically. Only on
+        // success do we advance our in-memory position — a commit failure leaves
+        // lastLedger untouched so the same range is retried next poll.
+        const nextLedger = latestLedger + 1;
+        await this.commit(events, nextLedger);
+        this.lastLedger = nextLedger;
       } catch (error) {
         span.addEvent("poll_error", {
           "error.message": error instanceof Error
@@ -157,16 +155,5 @@ export class EventWatcher {
         this.log.error(error, "EventWatcher poll error");
       }
     });
-  }
-
-  private async dispatch(event: ChannelAuthEvent): Promise<void> {
-    for (const handler of this.handlers) {
-      try {
-        await handler(event);
-      } catch (error) {
-        this.log.debug("eventType", event.type);
-        this.log.error(error, "EventWatcher handler error");
-      }
-    }
   }
 }

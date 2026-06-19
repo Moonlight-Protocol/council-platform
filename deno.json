@@ -1,13 +1,13 @@
 {
   "name": "@moonlight-protocol/council-platform",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "exports": "./src/main.ts",
   "tasks": {
-    "serve": "deno run --allow-all --unstable-kv src/main.ts",
-    "test": "deno test --allow-all --unstable-kv",
-    "test:unit": "deno test --allow-all --unstable-kv src/",
-    "test:integration": "deno test --allow-all --unstable-kv --no-check --config tests/deno.json tests/",
+    "serve": "deno run --allow-all src/main.ts",
+    "test": "deno test --allow-all",
+    "test:unit": "deno test --allow-all src/",
+    "test:integration": "deno test --allow-all --no-check --config tests/deno.json tests/",
     "db:generate": "deno -A --node-modules-dir npm:drizzle-kit generate",
     "db:migrate": "deno -A --node-modules-dir npm:drizzle-kit migrate",
     "db:push": "deno -A --node-modules-dir npm:drizzle-kit push",
