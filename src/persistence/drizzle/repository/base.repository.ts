@@ -3,7 +3,7 @@
 // unknown should be used instead of any where possible
 import { and, eq, isNull, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
-import type { DrizzleClient } from "@/persistence/drizzle/config.ts";
+import type { DbOrTx } from "@/persistence/drizzle/config.ts";
 
 /**
  * Abstract base class for repositories with generic CRUD methods
@@ -14,7 +14,7 @@ export abstract class BaseRepository<
   TInsert = any,
 > {
   constructor(
-    protected readonly db: DrizzleClient,
+    protected readonly db: DbOrTx,
     protected readonly table: TTable,
   ) {}
 
