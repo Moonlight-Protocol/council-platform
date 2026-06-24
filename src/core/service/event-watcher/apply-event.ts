@@ -4,10 +4,6 @@ import type { CouncilChannelRepository } from "@/persistence/drizzle/repository/
 import { ProviderStatus } from "@/persistence/drizzle/entity/council-provider.entity.ts";
 import { ChannelStatus } from "@/persistence/drizzle/entity/council-channel.entity.ts";
 import type { ChannelAuthEvent } from "./event-watcher.types.ts";
-import {
-  type NotifyProviderRemoved,
-  notifyProviderRemoved,
-} from "./notify-provider-removed.ts";
 
 /**
  * Apply a single Channel Auth event to the council tables, using the
@@ -26,7 +22,6 @@ export async function applyEvent(
     channelRepo: CouncilChannelRepository;
   },
   log: Logger,
-  notify: NotifyProviderRemoved = notifyProviderRemoved,
 ): Promise<void> {
   const { providerRepo, channelRepo } = repos;
   switch (event.type) {
@@ -75,26 +70,11 @@ export async function applyEvent(
         event.address,
       );
       if (provider) {
-        // Only the ACTIVE→REMOVED transition is a real removal. Re-delivery of
-        // the same event, or a boot replay where the row is already REMOVED,
-        // is a no-op for the notify so the PP backend isn't pinged twice.
-        const wasActive = provider.status === ProviderStatus.ACTIVE;
         await providerRepo.update(provider.id, {
           status: ProviderStatus.REMOVED,
           removedByEvent: `ledger:${event.ledger}`,
         });
         log.event("provider marked as removed");
-
-        if (wasActive && provider.providerUrl) {
-          // Live signal to the removed PP's backend. Fire-and-forget (not
-          // awaited) so it can't stall or roll back this poll's atomic commit;
-          // the PP's own event-watcher remains the can't-miss path.
-          notify(
-            provider.providerUrl,
-            { councilId, publicKey: event.address, ledger: event.ledger },
-            { log },
-          );
-        }
       }
       break;
     }
