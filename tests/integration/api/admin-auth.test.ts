@@ -5,7 +5,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { newNoop } from "@/utils/logger/index.ts";
-import { createMockContext } from "../../test_app.ts";
+import { createMockContext, runHandler } from "../../test_app.ts";
 import { ensureInitialized } from "../../test_helpers.ts";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
@@ -28,7 +28,7 @@ Deno.test("POST /admin/auth/challenge - returns a nonce", async () => {
     body: { publicKey: pk },
   });
 
-  await handlePostChallenge({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostChallenge({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -45,10 +45,11 @@ Deno.test("POST /admin/auth/challenge - rejects missing publicKey", async () => 
     body: {},
   });
 
-  await handlePostChallenge({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostChallenge({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(res.body.message, "publicKey is required");
 });
 
@@ -60,10 +61,11 @@ Deno.test("POST /admin/auth/challenge - rejects invalid Stellar key format", asy
     body: { publicKey: "not-a-stellar-key" },
   });
 
-  await handlePostChallenge({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostChallenge({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(res.body.message, "Invalid Stellar public key format");
 });
 
@@ -80,7 +82,7 @@ Deno.test("POST /admin/auth/verify - valid signature returns JWT", async () => {
     method: "POST",
     body: { publicKey: pk },
   });
-  await handlePostChallenge({ log: newNoop() })(challengeCtx.ctx);
+  await runHandler(challengeCtx.ctx, handlePostChallenge({ log: newNoop() }));
   const nonce = challengeCtx.getResponse().body.data.nonce;
 
   // Step 2: sign the nonce (raw format)
@@ -94,7 +96,7 @@ Deno.test("POST /admin/auth/verify - valid signature returns JWT", async () => {
     body: { nonce, signature, publicKey: pk },
   });
 
-  await handlePostVerify({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostVerify({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -112,7 +114,7 @@ Deno.test("POST /admin/auth/verify - invalid signature returns 401", async () =>
     method: "POST",
     body: { publicKey: pk },
   });
-  await handlePostChallenge({ log: newNoop() })(challengeCtx.ctx);
+  await runHandler(challengeCtx.ctx, handlePostChallenge({ log: newNoop() }));
   const nonce = challengeCtx.getResponse().body.data.nonce;
 
   // Sign with a different key
@@ -126,11 +128,14 @@ Deno.test("POST /admin/auth/verify - invalid signature returns 401", async () =>
     body: { nonce, signature, publicKey: pk },
   });
 
-  await handlePostVerify({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostVerify({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 401);
-  assertEquals(res.body.message, "Authentication failed");
+  // The edge now surfaces the specific structured auth code + copy instead of a
+  // blanket "Authentication failed".
+  assertEquals(res.body.code, "COUNCIL_AUTH_005");
+  assertEquals(res.body.message, "Invalid signature");
 });
 
 Deno.test("POST /admin/auth/verify - rejects missing fields", async () => {
@@ -141,10 +146,11 @@ Deno.test("POST /admin/auth/verify - rejects missing fields", async () => {
     body: { nonce: "some-nonce" },
   });
 
-  await handlePostVerify({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostVerify({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(
     res.body.message,
     "nonce, signature, and publicKey are required",

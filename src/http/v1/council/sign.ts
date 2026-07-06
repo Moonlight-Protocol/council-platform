@@ -10,6 +10,7 @@ import {
   registerCustodialUser,
 } from "@/core/service/custody/custody.service.ts";
 import type { JwtSessionData } from "@/http/middleware/auth/index.ts";
+import * as E from "@/http/v1/error.ts";
 import type { Logger } from "@/utils/logger/index.ts";
 
 const providerRepo = new CouncilProviderRepository(drizzleClient);
@@ -23,10 +24,10 @@ const HEX_RE = /^[0-9a-f]+$/i;
 
 function hexToBytes(hex: string): Uint8Array {
   if (hex.length % 2 !== 0) {
-    throw new Error("Hex string must have even length");
+    throw new E.VALIDATION_FAILED("Hex string must have even length");
   }
   if (!HEX_RE.test(hex)) {
-    throw new Error("Invalid hex characters");
+    throw new E.VALIDATION_FAILED("Invalid hex characters");
   }
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
@@ -81,63 +82,49 @@ export function handlePostRegisterUser(
 
   return async (ctx) => {
     log.info("postRegisterUser");
+    const session = ctx.state.session as JwtSessionData;
+
+    let body;
     try {
-      const session = ctx.state.session as JwtSessionData;
-
-      const body = await ctx.request.body.json();
-      const { councilId, externalId, channelContractId } = body;
-
-      if (!councilId || typeof councilId !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "councilId is required" };
-        return;
-      }
-
-      const providerError = await validateProviderSession(
-        councilId,
-        session,
-        deps,
-      );
-      if (providerError) {
-        ctx.response.status = Status.Forbidden;
-        ctx.response.body = { message: providerError };
-        return;
-      }
-
-      if (!externalId || typeof externalId !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "externalId is required" };
-        return;
-      }
-
-      if (!channelContractId || typeof channelContractId !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "channelContractId is required" };
-        return;
-      }
-
-      const result = await registerCustodialUser({
-        councilId,
-        externalId,
-        channelContractId,
-        providerPublicKey: session.sub,
-      }, { log });
-
-      ctx.response.status = Status.OK;
-      ctx.response.body = {
-        message: "User registered",
-        data: result,
-      };
+      body = await ctx.request.body.json();
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Invalid request body" };
-      } else {
-        log.error(error, "failed to register custodial user");
-        ctx.response.status = Status.InternalServerError;
-        ctx.response.body = { message: "Failed to register user" };
-      }
+      throw new E.INVALID_REQUEST_BODY(error);
     }
+    const { councilId, externalId, channelContractId } = body;
+
+    if (!councilId || typeof councilId !== "string") {
+      throw new E.VALIDATION_FAILED("councilId is required");
+    }
+
+    const providerError = await validateProviderSession(
+      councilId,
+      session,
+      deps,
+    );
+    if (providerError) {
+      throw new E.FORBIDDEN(providerError);
+    }
+
+    if (!externalId || typeof externalId !== "string") {
+      throw new E.VALIDATION_FAILED("externalId is required");
+    }
+
+    if (!channelContractId || typeof channelContractId !== "string") {
+      throw new E.VALIDATION_FAILED("channelContractId is required");
+    }
+
+    const result = await registerCustodialUser({
+      councilId,
+      externalId,
+      channelContractId,
+      providerPublicKey: session.sub,
+    }, { log });
+
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "User registered",
+      data: result,
+    };
   };
 }
 
@@ -156,66 +143,52 @@ export function handlePostGetKeys(
 
   return async (ctx) => {
     log.info("postGetKeys");
+    const session = ctx.state.session as JwtSessionData;
+
+    let body;
     try {
-      const session = ctx.state.session as JwtSessionData;
-
-      const body = await ctx.request.body.json();
-      const { councilId, externalId, channelContractId, indices } = body;
-
-      if (!councilId || typeof councilId !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "councilId is required" };
-        return;
-      }
-
-      const providerError = await validateProviderSession(
-        councilId,
-        session,
-        deps,
-      );
-      if (providerError) {
-        ctx.response.status = Status.Forbidden;
-        ctx.response.body = { message: providerError };
-        return;
-      }
-
-      if (!externalId || !channelContractId || !Array.isArray(indices)) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = {
-          message: "externalId, channelContractId, and indices are required",
-        };
-        return;
-      }
-
-      if (indices.length > 300) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Maximum 300 indices per request" };
-        return;
-      }
-
-      const publicKeys = await getUserPublicKeys(
-        councilId,
-        externalId,
-        channelContractId,
-        indices,
-        deps,
-      );
-
-      ctx.response.status = Status.OK;
-      ctx.response.body = {
-        message: "Public keys derived",
-        data: { publicKeys },
-      };
+      body = await ctx.request.body.json();
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Invalid request body" };
-      } else {
-        log.error(error, "failed to derive public keys");
-        ctx.response.status = Status.InternalServerError;
-        ctx.response.body = { message: "Failed to derive public keys" };
-      }
+      throw new E.INVALID_REQUEST_BODY(error);
     }
+    const { councilId, externalId, channelContractId, indices } = body;
+
+    if (!councilId || typeof councilId !== "string") {
+      throw new E.VALIDATION_FAILED("councilId is required");
+    }
+
+    const providerError = await validateProviderSession(
+      councilId,
+      session,
+      deps,
+    );
+    if (providerError) {
+      throw new E.FORBIDDEN(providerError);
+    }
+
+    if (!externalId || !channelContractId || !Array.isArray(indices)) {
+      throw new E.VALIDATION_FAILED(
+        "externalId, channelContractId, and indices are required",
+      );
+    }
+
+    if (indices.length > 300) {
+      throw new E.VALIDATION_FAILED("Maximum 300 indices per request");
+    }
+
+    const publicKeys = await getUserPublicKeys(
+      councilId,
+      externalId,
+      channelContractId,
+      indices,
+      deps,
+    );
+
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Public keys derived",
+      data: { publicKeys },
+    };
   };
 }
 
@@ -242,136 +215,109 @@ export function handlePostSignSpend(
 
   return async (ctx) => {
     log.info("postSignSpend");
+    const session = ctx.state.session as JwtSessionData;
+
+    let body;
     try {
-      const session = ctx.state.session as JwtSessionData;
+      body = await ctx.request.body.json();
+    } catch (error) {
+      throw new E.INVALID_REQUEST_BODY(error);
+    }
+    const { councilId, channelContractId, spends } = body;
 
-      const body = await ctx.request.body.json();
-      const { councilId, channelContractId, spends } = body;
+    if (!councilId || typeof councilId !== "string") {
+      throw new E.VALIDATION_FAILED("councilId is required");
+    }
 
-      if (!councilId || typeof councilId !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "councilId is required" };
-        return;
+    const providerError = await validateProviderSession(
+      councilId,
+      session,
+      deps,
+    );
+    if (providerError) {
+      throw new E.FORBIDDEN(providerError);
+    }
+
+    if (!channelContractId || typeof channelContractId !== "string") {
+      throw new E.VALIDATION_FAILED("channelContractId is required");
+    }
+
+    if (!Array.isArray(spends) || spends.length === 0) {
+      throw new E.VALIDATION_FAILED(
+        "spends array is required and must not be empty",
+      );
+    }
+
+    if (spends.length > 300) {
+      throw new E.VALIDATION_FAILED("Maximum 300 spends per request");
+    }
+
+    const signatures: string[] = [];
+
+    for (const spend of spends) {
+      const { externalId, utxoIndex, message } = spend;
+
+      if (!externalId || typeof utxoIndex !== "number" || !message) {
+        throw new E.VALIDATION_FAILED(
+          "Each spend requires externalId, utxoIndex, and message",
+        );
       }
 
-      const providerError = await validateProviderSession(
+      if (!Number.isInteger(utxoIndex) || utxoIndex < 0 || utxoIndex >= 300) {
+        throw new E.VALIDATION_FAILED(
+          `utxoIndex must be an integer 0-299, got ${utxoIndex}`,
+        );
+      }
+
+      // Verify user exists and is active
+      const user = await userRepo.findByExternalIdAndChannel(
+        externalId,
+        channelContractId,
+      );
+      if (!user) {
+        throw new E.RESOURCE_NOT_FOUND("User not registered for this channel");
+      }
+
+      if (user.status !== CustodialUserStatus.ACTIVE) {
+        throw new E.FORBIDDEN("User is suspended");
+      }
+
+      // Only the provider that registered this user can request signatures
+      if (
+        user.registeredByProvider &&
+        user.registeredByProvider !== session.sub
+      ) {
+        throw new E.FORBIDDEN("Not authorized to sign for this user");
+      }
+
+      let messageBytes: Uint8Array;
+      try {
+        messageBytes = hexToBytes(message);
+      } catch {
+        throw new E.VALIDATION_FAILED(
+          "message must be a valid hex string with even length",
+        );
+      }
+      const signature = await signWithDerivedKey(
         councilId,
-        session,
+        channelContractId,
+        externalId,
+        utxoIndex,
+        messageBytes,
         deps,
       );
-      if (providerError) {
-        ctx.response.status = Status.Forbidden;
-        ctx.response.body = { message: providerError };
-        return;
-      }
-
-      if (!channelContractId || typeof channelContractId !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "channelContractId is required" };
-        return;
-      }
-
-      if (!Array.isArray(spends) || spends.length === 0) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = {
-          message: "spends array is required and must not be empty",
-        };
-        return;
-      }
-
-      if (spends.length > 300) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Maximum 300 spends per request" };
-        return;
-      }
-
-      const signatures: string[] = [];
-
-      for (const spend of spends) {
-        const { externalId, utxoIndex, message } = spend;
-
-        if (!externalId || typeof utxoIndex !== "number" || !message) {
-          ctx.response.status = Status.BadRequest;
-          ctx.response.body = {
-            message: "Each spend requires externalId, utxoIndex, and message",
-          };
-          return;
-        }
-
-        if (!Number.isInteger(utxoIndex) || utxoIndex < 0 || utxoIndex >= 300) {
-          ctx.response.status = Status.BadRequest;
-          ctx.response.body = {
-            message: `utxoIndex must be an integer 0-299, got ${utxoIndex}`,
-          };
-          return;
-        }
-
-        // Verify user exists and is active
-        const user = await userRepo.findByExternalIdAndChannel(
-          externalId,
-          channelContractId,
-        );
-        if (!user) {
-          ctx.response.status = Status.NotFound;
-          ctx.response.body = {
-            message: `User not registered for this channel`,
-          };
-          return;
-        }
-
-        if (user.status !== CustodialUserStatus.ACTIVE) {
-          ctx.response.status = Status.Forbidden;
-          ctx.response.body = { message: "User is suspended" };
-          return;
-        }
-
-        // Only the provider that registered this user can request signatures
-        if (
-          user.registeredByProvider &&
-          user.registeredByProvider !== session.sub
-        ) {
-          ctx.response.status = Status.Forbidden;
-          ctx.response.body = {
-            message: "Not authorized to sign for this user",
-          };
-          return;
-        }
-
-        let messageBytes: Uint8Array;
-        try {
-          messageBytes = hexToBytes(message);
-        } catch {
-          ctx.response.status = Status.BadRequest;
-          ctx.response.body = {
-            message: "message must be a valid hex string with even length",
-          };
-          return;
-        }
-        const signature = await signWithDerivedKey(
-          councilId,
-          channelContractId,
-          externalId,
-          utxoIndex,
-          messageBytes,
-          deps,
-        );
-        signatures.push(bytesToHex(signature));
-      }
-
-      log.debug("channelContractId", channelContractId);
-      log.debug("spendCount", spends.length);
-      log.debug("provider", session.sub);
-      log.event("spend signatures generated");
-
-      ctx.response.status = Status.OK;
-      ctx.response.body = {
-        message: "Signatures generated",
-        data: { signatures },
-      };
-    } catch (error) {
-      log.error(error, "failed to sign spend operations");
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to generate signatures" };
+      signatures.push(bytesToHex(signature));
     }
+
+    log.debug("channelContractId", channelContractId);
+    log.debug("spendCount", spends.length);
+    log.debug("provider", session.sub);
+    log.event("spend signatures generated");
+
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Signatures generated",
+      data: { signatures },
+    };
   };
 }

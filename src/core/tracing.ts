@@ -2,6 +2,12 @@ import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 
 const tracer = trace.getTracer("council-platform");
 
+/** The active W3C trace id, if a span is in scope — for log correlation. */
+export function currentTraceId(): string | undefined {
+  const spanContext = trace.getActiveSpan()?.spanContext();
+  return spanContext?.traceId;
+}
+
 export function withSpan<T>(
   name: string,
   fn: (span: Span) => Promise<T> | T,

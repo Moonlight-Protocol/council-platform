@@ -4,7 +4,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/middleware.test.ts
  */
 import { assertEquals } from "@std/assert";
-import { createMockContext } from "../../test_app.ts";
+import { createMockContext, runMiddleware } from "../../test_app.ts";
 import { createWalletJwt } from "../../test_jwt.ts";
 
 import { corsMiddleware } from "@/http/middleware/cors.ts";
@@ -155,13 +155,14 @@ Deno.test("jwtMiddleware - rejects missing Authorization header", async () => {
   const { ctx, getResponse } = createMockContext({ method: "GET" });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
+  await runMiddleware(ctx, jwtMiddleware({ log: newNoop() }), async () => {
     nextCalled = true;
   });
 
   assertEquals(nextCalled, false);
   const res = getResponse();
   assertEquals(res.status, 401);
+  assertEquals(res.body.code, "HTTP_AUTH_001");
   assertEquals(res.body.message, "Missing authorization header");
 });
 
@@ -172,13 +173,14 @@ Deno.test("jwtMiddleware - rejects invalid Authorization format", async () => {
   });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
+  await runMiddleware(ctx, jwtMiddleware({ log: newNoop() }), async () => {
     nextCalled = true;
   });
 
   assertEquals(nextCalled, false);
   const res = getResponse();
   assertEquals(res.status, 401);
+  assertEquals(res.body.code, "HTTP_AUTH_002");
   assertEquals(res.body.message, "Invalid authorization header");
 });
 
@@ -189,13 +191,14 @@ Deno.test("jwtMiddleware - rejects invalid JWT token", async () => {
   });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
+  await runMiddleware(ctx, jwtMiddleware({ log: newNoop() }), async () => {
     nextCalled = true;
   });
 
   assertEquals(nextCalled, false);
   const res = getResponse();
   assertEquals(res.status, 401);
+  assertEquals(res.body.code, "HTTP_AUTH_004");
   assertEquals(res.body.message, "JWT verification failed");
 });
 
@@ -207,7 +210,7 @@ Deno.test("jwtMiddleware - accepts valid wallet JWT and sets session", async () 
   });
   let nextCalled = false;
   // deno-lint-ignore require-await -- mock satisfies oak Next() => Promise<unknown>
-  await jwtMiddleware({ log: newNoop() })(ctx, async () => {
+  await runMiddleware(ctx, jwtMiddleware({ log: newNoop() }), async () => {
     nextCalled = true;
   });
 

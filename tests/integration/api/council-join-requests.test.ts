@@ -10,7 +10,7 @@
  */
 import { assertEquals } from "@std/assert";
 import { newNoop } from "@/utils/logger/index.ts";
-import { createMockContext } from "../../test_app.ts";
+import { createMockContext, runHandler } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
   ensureInitialized,
@@ -53,7 +53,7 @@ Deno.test("GET /council/provider-requests - lists all join requests", async () =
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleListJoinRequests({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleListJoinRequests({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -75,7 +75,7 @@ Deno.test("GET /council/provider-requests?status=PENDING - filters pending", asy
     query: { status: "PENDING", councilId: "default" },
     state: { ...adminState },
   });
-  await handleListJoinRequests({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleListJoinRequests({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -102,7 +102,7 @@ Deno.test("POST /council/provider-requests/:id/reject - rejects a pending reques
     params: { id: request.id },
     state: { ...adminState },
   });
-  await handleRejectJoinRequest({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleRejectJoinRequest({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -120,10 +120,11 @@ Deno.test("POST /council/provider-requests/:id/reject - returns 404 for non-exis
     params: { id: "non-existent" },
     state: { ...adminState },
   });
-  await handleRejectJoinRequest({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleRejectJoinRequest({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 404);
+  assertEquals(res.body.code, "HTTP_REQ_004");
   assertEquals(res.body.message, "Join request not found");
 });
 
@@ -140,10 +141,11 @@ Deno.test("POST /council/provider-requests/:id/reject - returns 409 for already 
     params: { id: request.id },
     state: { ...adminState },
   });
-  await handleRejectJoinRequest({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleRejectJoinRequest({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 409);
+  assertEquals(res.body.code, "HTTP_REQ_005");
 });
 
 // ---------------------------------------------------------------------------
@@ -161,10 +163,11 @@ Deno.test("POST /council/provider-requests/:id/approve - returns 404 for non-exi
     params: { id: "non-existent" },
     state: { ...adminState },
   });
-  await handleApproveJoinRequest({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleApproveJoinRequest({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 404);
+  assertEquals(res.body.code, "HTTP_REQ_004");
   assertEquals(res.body.message, "Join request not found");
 });
 
@@ -181,8 +184,9 @@ Deno.test("POST /council/provider-requests/:id/approve - returns 409 for already
     params: { id: request.id },
     state: { ...adminState },
   });
-  await handleApproveJoinRequest({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleApproveJoinRequest({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 409);
+  assertEquals(res.body.code, "HTTP_REQ_005");
 });

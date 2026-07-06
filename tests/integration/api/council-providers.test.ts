@@ -5,7 +5,7 @@
  */
 import { assertEquals } from "@std/assert";
 import { newNoop } from "@/utils/logger/index.ts";
-import { createMockContext } from "../../test_app.ts";
+import { createMockContext, runHandler } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
   ensureInitialized,
@@ -54,7 +54,7 @@ Deno.test("GET /council/providers - lists all providers", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleListProviders({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleListProviders({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -81,7 +81,7 @@ Deno.test("GET /council/providers?status=ACTIVE - filters to active", async () =
     query: { status: "ACTIVE", councilId: "default" },
     state: { ...adminState },
   });
-  await handleListProviders({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleListProviders({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -105,7 +105,7 @@ Deno.test("GET /council/providers/:id - returns provider details", async () => {
     params: { id: provider.id },
     state: { ...adminState },
   });
-  await handleGetProvider({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleGetProvider({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -121,10 +121,12 @@ Deno.test("GET /council/providers/:id - returns 404 for non-existent", async () 
     params: { id: "non-existent" },
     state: { ...adminState },
   });
-  await handleGetProvider({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleGetProvider({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 404);
+  assertEquals(res.body.code, "HTTP_REQ_004");
+  assertEquals(res.body.message, "Provider not found");
 });
 
 // ---------------------------------------------------------------------------
@@ -144,7 +146,7 @@ Deno.test("PUT /council/providers/:id - updates provider metadata", async () => 
     body: { label: "Updated Label", contactEmail: "new@example.com" },
     state: { ...adminState },
   });
-  await handleUpdateProvider({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleUpdateProvider({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);

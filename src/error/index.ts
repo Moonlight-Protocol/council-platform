@@ -20,7 +20,13 @@ export class PlatformError<M = undefined | unknown> extends Error {
   readonly api?: APIDetails;
 
   constructor(e: PlatformErrorShape<M>) {
-    super(e.message);
+    // Preserve the wrapped original as the native `cause` so the full chain
+    // flows into logs/OTel (see logger `flattenCauses`), while the redacted
+    // `api` projection is all that reaches the client.
+    super(
+      e.message,
+      e.baseError !== undefined ? { cause: e.baseError } : undefined,
+    );
     this.name = "ML Platform Error: " + e.code;
     this.code = e.code;
     this.source = e.source;

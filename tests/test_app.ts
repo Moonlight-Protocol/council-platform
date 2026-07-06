@@ -6,6 +6,44 @@
  * and call route handlers directly — same pattern as provider-platform.
  */
 
+import { PIPE_APIError } from "@/http/pipelines/error-pipeline.ts";
+import { newNoop } from "@/utils/logger/index.ts";
+
+/**
+ * Run a route handler through the same edge error-translation the global
+ * `errorMiddleware` applies in production. Handlers now `throw` structured
+ * `PlatformError`s instead of writing ad-hoc bodies, so error paths must go
+ * through `PIPE_APIError` to yield the `{ status, code, message, details }`
+ * response the client (and these assertions) see. Success paths are unaffected.
+ */
+export async function runHandler(
+  ctx: any,
+  handler: (ctx: any) => Promise<void> | void,
+): Promise<void> {
+  try {
+    await handler(ctx);
+  } catch (error) {
+    await PIPE_APIError(ctx, { log: newNoop() }).run(error as Error);
+  }
+}
+
+/**
+ * Same edge translation as `runHandler`, for middleware under test that now
+ * `throw`s structured errors (e.g. `jwtMiddleware`) instead of writing the
+ * response itself.
+ */
+export async function runMiddleware(
+  ctx: any,
+  middleware: (ctx: any, next: () => Promise<unknown>) => Promise<unknown>,
+  next: () => Promise<unknown>,
+): Promise<void> {
+  try {
+    await middleware(ctx, next);
+  } catch (error) {
+    await PIPE_APIError(ctx, { log: newNoop() }).run(error as Error);
+  }
+}
+
 export type MockResponse = {
   status: number;
   body: any;

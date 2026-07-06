@@ -11,7 +11,7 @@
  * Run with: deno test --allow-all --no-check --config tests/deno.json tests/integration/api/public-routes.test.ts
  */
 import { assertEquals, assertExists } from "@std/assert";
-import { createMockContext } from "../../test_app.ts";
+import { createMockContext, runHandler } from "../../test_app.ts";
 import {
   ensureInitialized,
   JoinRequestStatus,
@@ -95,7 +95,7 @@ Deno.test("POST /public/provider/join-request - creates a join request", async (
     },
   });
 
-  await joinRequestHandler(ctx);
+  await runHandler(ctx, joinRequestHandler);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -115,10 +115,11 @@ Deno.test("POST /public/provider/join-request - rejects missing publicKey", asyn
     body: { councilId: "default", label: "No Key" },
   });
 
-  await joinRequestHandler(ctx);
+  await runHandler(ctx, joinRequestHandler);
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(res.body.message, "publicKey is required");
 });
 
@@ -132,10 +133,11 @@ Deno.test("POST /public/provider/join-request - rejects invalid Stellar key", as
     body: { publicKey: "not-a-stellar-key", councilId: "default" },
   });
 
-  await joinRequestHandler(ctx);
+  await runHandler(ctx, joinRequestHandler);
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(res.body.message, "Invalid Stellar public key format");
 });
 
@@ -152,10 +154,11 @@ Deno.test("POST /public/provider/join-request - rejects duplicate pending reques
     body: { publicKey: pk, councilId: "default" },
   });
 
-  await joinRequestHandler(ctx);
+  await runHandler(ctx, joinRequestHandler);
 
   const res = getResponse();
   assertEquals(res.status, 409);
+  assertEquals(res.body.code, "HTTP_REQ_005");
   assertEquals(
     res.body.message,
     "A pending join request already exists for this public key",
@@ -175,7 +178,7 @@ Deno.test("POST /public/provider/join-request - allows request if previous was a
     body: { publicKey: pk, councilId: "default", label: "Second attempt" },
   });
 
-  await joinRequestHandler(ctx);
+  await runHandler(ctx, joinRequestHandler);
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -193,9 +196,10 @@ Deno.test("POST /public/provider/join-request - rejects label over 200 chars", a
     body: { publicKey: pk, councilId: "default", label: "x".repeat(201) },
   });
 
-  await joinRequestHandler(ctx);
+  await runHandler(ctx, joinRequestHandler);
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(res.body.message, "label must be at most 200 characters");
 });
