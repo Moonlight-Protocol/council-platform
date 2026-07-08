@@ -1,6 +1,7 @@
 import { NETWORK_RPC_SERVER } from "@/config/env.ts";
 import { withSpan } from "@/core/tracing.ts";
 import type { Logger } from "@/utils/logger/index.ts";
+import * as E from "@/core/service/channel/error.ts";
 
 export interface ChannelOnChainState {
   totalDeposited: bigint | null;
@@ -41,7 +42,7 @@ export function queryChannelState(
       };
     } catch (error) {
       log.error(error, "failed to query channel state from RPC");
-      throw new Error("Failed to query channel on-chain state");
+      throw new E.CHANNEL_STATE_QUERY_FAILED(error);
     }
   });
 }

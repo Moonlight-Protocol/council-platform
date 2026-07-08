@@ -5,7 +5,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { newNoop } from "@/utils/logger/index.ts";
-import { createMockContext } from "../../test_app.ts";
+import { createMockContext, runHandler } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
   ensureInitialized,
@@ -45,7 +45,7 @@ Deno.test("GET /council/jurisdictions - lists jurisdictions", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleListJurisdictions({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleListJurisdictions({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -67,7 +67,7 @@ Deno.test("POST /council/jurisdictions - adds a jurisdiction", async () => {
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleAddJurisdiction({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleAddJurisdiction({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -88,10 +88,11 @@ Deno.test("POST /council/jurisdictions - rejects invalid country code", async ()
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleAddJurisdiction({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleAddJurisdiction({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
 });
 
 Deno.test("POST /council/jurisdictions - rejects duplicate country code", async () => {
@@ -107,10 +108,11 @@ Deno.test("POST /council/jurisdictions - rejects duplicate country code", async 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleAddJurisdiction({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleAddJurisdiction({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 409);
+  assertEquals(res.body.code, "HTTP_REQ_005");
 });
 
 // ---------------------------------------------------------------------------
@@ -130,7 +132,7 @@ Deno.test("DELETE /council/jurisdictions/:code - removes a jurisdiction", async 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleRemoveJurisdiction({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleRemoveJurisdiction({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -148,8 +150,10 @@ Deno.test("DELETE /council/jurisdictions/:code - returns 404 for non-existent", 
     query: { councilId: "default" },
     state: { ...adminState },
   });
-  await handleRemoveJurisdiction({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleRemoveJurisdiction({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 404);
+  assertEquals(res.body.code, "HTTP_REQ_004");
+  assertEquals(res.body.message, "Jurisdiction ZZ not found");
 });

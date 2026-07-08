@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import { Keypair } from "stellar-sdk";
 import { createPostJoinRequestHandler } from "./join-request.ts";
 import { newNoop } from "@/utils/logger/index.ts";
+import { runHandler } from "../../../../tests/test_app.ts";
 
 const TEST_COUNCIL_ID =
   "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
@@ -28,15 +29,17 @@ function createMockContext(body: unknown): any {
 Deno.test("join-request: rejects missing councilId", async () => {
   const kp = Keypair.random();
   const ctx = createMockContext({ publicKey: kp.publicKey() });
-  await handler(ctx);
+  await runHandler(ctx, handler);
   assertEquals(ctx.response.status, 400);
+  assertEquals(ctx.response.body.code, "HTTP_REQ_002");
   assertEquals(ctx.response.body.message, "councilId is required");
 });
 
 Deno.test("join-request: rejects missing publicKey", async () => {
   const ctx = createMockContext({ councilId: TEST_COUNCIL_ID });
-  await handler(ctx);
+  await runHandler(ctx, handler);
   assertEquals(ctx.response.status, 400);
+  assertEquals(ctx.response.body.code, "HTTP_REQ_002");
   assertEquals(ctx.response.body.message, "publicKey is required");
 });
 
@@ -45,8 +48,9 @@ Deno.test("join-request: rejects invalid Stellar key format", async () => {
     councilId: TEST_COUNCIL_ID,
     publicKey: "not-a-key",
   });
-  await handler(ctx);
+  await runHandler(ctx, handler);
   assertEquals(ctx.response.status, 400);
+  assertEquals(ctx.response.body.code, "HTTP_REQ_002");
   assertEquals(ctx.response.body.message, "Invalid Stellar public key format");
 });
 
@@ -57,8 +61,9 @@ Deno.test("join-request: rejects label over 200 chars", async () => {
     publicKey: kp.publicKey(),
     label: "x".repeat(201),
   });
-  await handler(ctx);
+  await runHandler(ctx, handler);
   assertEquals(ctx.response.status, 400);
+  assertEquals(ctx.response.body.code, "HTTP_REQ_002");
   assertEquals(
     ctx.response.body.message,
     "label must be at most 200 characters",
@@ -72,8 +77,9 @@ Deno.test("join-request: rejects jurisdictions over 50 entries", async () => {
     publicKey: kp.publicKey(),
     jurisdictions: Array(51).fill("XX"),
   });
-  await handler(ctx);
+  await runHandler(ctx, handler);
   assertEquals(ctx.response.status, 400);
+  assertEquals(ctx.response.body.code, "HTTP_REQ_002");
   assertEquals(
     ctx.response.body.message,
     "jurisdictions must have at most 50 entries",
@@ -87,8 +93,9 @@ Deno.test("join-request: rejects non-HTTP callbackEndpoint", async () => {
     publicKey: kp.publicKey(),
     callbackEndpoint: "file:///etc/passwd",
   });
-  await handler(ctx);
+  await runHandler(ctx, handler);
   assertEquals(ctx.response.status, 400);
+  assertEquals(ctx.response.body.code, "HTTP_REQ_002");
   assertEquals(
     ctx.response.body.message,
     "callbackEndpoint must be a valid HTTP(S) URL",
@@ -102,8 +109,9 @@ Deno.test("join-request: rejects callbackEndpoint over 500 chars", async () => {
     publicKey: kp.publicKey(),
     callbackEndpoint: "https://example.com/" + "a".repeat(500),
   });
-  await handler(ctx);
+  await runHandler(ctx, handler);
   assertEquals(ctx.response.status, 400);
+  assertEquals(ctx.response.body.code, "HTTP_REQ_002");
   assertEquals(
     ctx.response.body.message,
     "callbackEndpoint must be at most 500 characters",

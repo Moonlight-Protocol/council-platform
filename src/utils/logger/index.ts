@@ -10,11 +10,14 @@ export enum Level {
   Disabled = 3,
 }
 
+/** Correlation ids (request/trace/council/account) attached to a log record. */
+export type Correlation = { [key: string]: unknown };
+
 export interface Logger {
   info(msg: string): void;
   event(msg: string): void;
   debug(key: string, value: unknown): void;
-  error(err: unknown, msg: string): void;
+  error(err: unknown, msg: string, corr?: Correlation): void;
   scope(name: string): Logger;
 }
 
@@ -37,6 +40,35 @@ interface Record {
   key?: string;
   value?: unknown;
   error?: string;
+  corr?: Correlation;
+}
+
+/**
+ * Flatten an error and its `cause` chain into a single "msg <- cause <- ..."
+ * string so the full wrapped context (per the error-bubbling standard) lands in
+ * the logs even though only a redacted `StructuredError` reaches the client.
+ */
+function flattenCauses(err: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = err;
+  const seen = new Set<unknown>();
+  for (let depth = 0; depth < 16 && current != null; depth++) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    parts.push(current instanceof Error ? current.message : String(current));
+    current = current instanceof Error
+      ? (current as { cause?: unknown }).cause
+      : undefined;
+  }
+  return parts.join(" <- ");
+}
+
+function renderCorr(corr?: Correlation): string {
+  if (!corr) return "";
+  const pairs = Object.entries(corr)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `${k}=${stringify(v)}`);
+  return pairs.length ? " " + pairs.join(" ") : "";
 }
 
 type Format = (r: Record) => string;
@@ -108,7 +140,9 @@ function humanFormat(colored: boolean): Format {
           stringify(r.value)
         } (${r.scope})`;
       case "error":
-        return `${ts} ${redLb("ERR")} [${r.scope}] ${r.msg} error="${r.error}"`;
+        return `${ts} ${redLb("ERR")} [${r.scope}] ${r.msg} error="${r.error}"${
+          renderCorr(r.corr)
+        }`;
     }
   };
 }
@@ -124,6 +158,7 @@ const jsonFormat: Format = (r) => {
   if (r.key !== undefined) out.key = r.key;
   if (r.value !== undefined) out.value = safeJsonValue(r.value);
   if (r.error !== undefined) out.error = r.error;
+  if (r.corr !== undefined) out.corr = safeJsonValue(r.corr) as Correlation;
   try {
     return JSON.stringify(out);
   } catch (err) {
@@ -172,15 +207,16 @@ class LoggerImpl implements Logger {
     this.emit({ ts: now(), level: "debug", scope: this.scopePath, key, value });
   }
 
-  error(err: unknown, msg: string): void {
+  error(err: unknown, msg: string, corr?: Correlation): void {
     // ERR always emits regardless of level (matches go-logger / zerolog).
-    const detail = err instanceof Error ? err.message : String(err);
+    // Flatten the full cause chain so wrapped context survives into the logs.
     this.emit({
       ts: now(),
       level: "error",
       scope: this.scopePath,
       msg,
-      error: detail,
+      error: flattenCauses(err),
+      corr,
     });
   }
 

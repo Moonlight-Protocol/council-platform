@@ -1,6 +1,7 @@
 import { Application } from "@oak/oak";
 
 import { buildApiRouter } from "@/http/v1/v1.routes.ts";
+import { errorMiddleware } from "@/http/middleware/error.ts";
 import { appendRequestIdMiddleware } from "@/http/middleware/append-request-id.ts";
 import { appendResponseHeadersMiddleware } from "@/http/middleware/append-response-headers.ts";
 import { traceContextMiddleware } from "@/http/middleware/trace-context.ts";
@@ -27,6 +28,9 @@ async function bootstrap() {
 
     app.use(corsMiddleware);
     app.use(traceContextMiddleware);
+    // Outermost error boundary — must wrap requestId + routes so anything they
+    // throw is logged with correlation and translated to a StructuredError.
+    app.use(errorMiddleware(deps));
     app.use(appendRequestIdMiddleware(deps));
     app.use(appendResponseHeadersMiddleware);
     const apiV1 = buildApiRouter(deps);

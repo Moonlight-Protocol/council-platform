@@ -6,6 +6,7 @@ import { CustodialUserStatus } from "@/persistence/drizzle/entity/custodial-user
 import { deriveP256PublicKey } from "@/core/service/custody/key-derivation.service.ts";
 import { withSpan } from "@/core/tracing.ts";
 import type { Logger } from "@/utils/logger/index.ts";
+import * as E from "@/core/service/escrow/error.ts";
 
 const escrowRepo = new CouncilEscrowRepository(drizzleClient);
 const userRepo = new CustodialUserRepository(drizzleClient);
@@ -95,7 +96,7 @@ export function createEscrow(opts: {
     span.setAttribute("escrow.asset_code", opts.assetCode);
 
     if (opts.amount <= 0n) {
-      throw new Error("Amount must be positive");
+      throw new E.INVALID_AMOUNT();
     }
 
     const escrow = await escrowRepo.create({
@@ -203,7 +204,7 @@ export function releaseEscrowsForRecipient(
       channelContractId,
     );
     if (!user || user.status !== CustodialUserStatus.ACTIVE) {
-      throw new Error("Recipient is not registered or not active");
+      throw new E.RECIPIENT_NOT_ACTIVE();
     }
 
     let totalReleased = 0n;

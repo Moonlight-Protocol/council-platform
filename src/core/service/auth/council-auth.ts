@@ -2,6 +2,8 @@ import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
 import type { Logger } from "@/utils/logger/index.ts";
 import { withSpan } from "@/core/tracing.ts";
+import * as E from "@/core/service/auth/error.ts";
+import { PlatformError } from "@/error/index.ts";
 
 const MAX_PENDING_CHALLENGES = 1000;
 let challengeTtlMs = 5 * 60 * 1000;
@@ -28,7 +30,7 @@ export function createCouncilChallenge(
 
   cleanupExpiredChallenges(deps);
   if (pendingChallenges.size >= MAX_PENDING_CHALLENGES) {
-    throw new Error("Too many pending challenges. Try again later.");
+    throw new E.TOO_MANY_CHALLENGES();
   }
   const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
   const nonce = btoa(String.fromCharCode(...nonceBytes));
@@ -57,16 +59,16 @@ export function verifyCouncilChallenge(
 
     const challenge = pendingChallenges.get(nonce);
     if (!challenge) {
-      throw new Error("Challenge not found or expired");
+      throw new E.CHALLENGE_NOT_FOUND();
     }
 
     if (Date.now() - challenge.createdAt > challengeTtlMs) {
       pendingChallenges.delete(nonce);
-      throw new Error("Challenge expired");
+      throw new E.CHALLENGE_EXPIRED();
     }
 
     if (challenge.publicKey !== publicKey) {
-      throw new Error("Public key mismatch");
+      throw new E.PUBLIC_KEY_MISMATCH();
     }
 
     // Don't consume nonce yet — only delete after successful verification
@@ -109,15 +111,17 @@ export function verifyCouncilChallenge(
           // Raw format
           const rawNonce = Buffer.from(nonce, "base64");
           if (!keypair.verify(rawNonce, sigBuffer)) {
-            throw new Error("Invalid signature");
+            throw new E.INVALID_SIGNATURE();
           }
           span.addEvent("signature_verified_raw");
         }
       }
     } catch (e) {
-      throw e instanceof Error && e.message === "Invalid signature"
-        ? e
-        : new Error("Invalid signature");
+      // Already-structured failures bubble as-is; any raw verify() error
+      // (malformed key/signature bytes) is wrapped as INVALID_SIGNATURE with
+      // the original preserved as the cause.
+      if (PlatformError.is(e)) throw e;
+      throw new E.INVALID_SIGNATURE(e);
     }
 
     // Signature verified — consume the nonce (one-time use)

@@ -10,6 +10,7 @@ import {
   ChannelPendingAction,
   ChannelStatus,
 } from "@/persistence/drizzle/entity/council-channel.entity.ts";
+import * as E from "@/http/v1/error.ts";
 import type { Logger } from "@/utils/logger/index.ts";
 
 const metadataRepo = new CouncilMetadataRepository(drizzleClient);
@@ -57,23 +58,16 @@ export function handleListChannels(
 
   return async (ctx) => {
     log.info("listChannels");
-    try {
-      const councilId = requireCouncilId(ctx);
-      if (!councilId) return;
-      if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+    const councilId = requireCouncilId(ctx);
+    await requireCouncilOwnership(ctx, councilId, metadataRepo);
 
-      const channels = await channelRepo.listAll(councilId);
+    const channels = await channelRepo.listAll(councilId);
 
-      ctx.response.status = Status.OK;
-      ctx.response.body = {
-        message: "Channels retrieved",
-        data: channels.map(formatChannel),
-      };
-    } catch (error) {
-      log.error(error, "failed to list channels");
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to retrieve channels" };
-    }
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Channels retrieved",
+      data: channels.map(formatChannel),
+    };
   };
 }
 
@@ -84,116 +78,93 @@ export function handleAddChannel(
 
   return async (ctx) => {
     log.info("addChannel");
+    const councilId = requireCouncilId(ctx);
+    await requireCouncilOwnership(ctx, councilId, metadataRepo);
+    log.debug("councilId", councilId);
+
+    let body;
     try {
-      const councilId = requireCouncilId(ctx);
-      if (!councilId) return;
-      if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
-      log.debug("councilId", councilId);
-
-      const body = await ctx.request.body.json();
-      const {
-        channelContractId,
-        assetCode,
-        assetContractId,
-        issuerAddress,
-        label,
-      } = body;
-
-      if (!channelContractId || typeof channelContractId !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "channelContractId is required" };
-        return;
-      }
-
-      if (!StrKey.isValidContractId(channelContractId)) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Invalid Soroban contract ID format" };
-        return;
-      }
-
-      if (!assetCode || typeof assetCode !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "assetCode is required" };
-        return;
-      }
-
-      if (assetCode.length > 12 || !/^[a-zA-Z0-9]+$/.test(assetCode)) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = {
-          message: "assetCode must be 1-12 alphanumeric characters",
-        };
-        return;
-      }
-
-      if (
-        assetContractId && typeof assetContractId === "string" &&
-        !StrKey.isValidContractId(assetContractId)
-      ) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Invalid asset contract ID format" };
-        return;
-      }
-
-      if (label && typeof label !== "string") {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "label must be a string" };
-        return;
-      }
-      if (label && label.length > 200) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "label must be at most 200 characters" };
-        return;
-      }
-
-      const existing = await channelRepo.findByContractId(
-        councilId,
-        channelContractId,
-      );
-      if (existing) {
-        ctx.response.status = Status.Conflict;
-        ctx.response.body = {
-          message: "Channel with this contract ID already exists",
-        };
-        return;
-      }
-
-      const channel = await channelRepo.create({
-        id: crypto.randomUUID(),
-        councilId,
-        channelContractId,
-        assetCode: assetCode.trim(),
-        assetContractId: assetContractId?.trim() ?? null,
-        label: label?.trim() ?? null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      try {
-        await knownAssetRepo.upsert(
-          assetCode.trim(),
-          (issuerAddress || "").trim(),
-        );
-      } catch { /* best effort */ }
-
-      log.debug("channelContractId", channelContractId);
-      log.debug("assetCode", assetCode);
-      log.event("channel added");
-
-      ctx.response.status = Status.OK;
-      ctx.response.body = {
-        message: "Channel added",
-        data: formatChannel(channel),
-      };
+      body = await ctx.request.body.json();
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Invalid request body" };
-      } else {
-        log.error(error, "failed to add channel");
-        ctx.response.status = Status.InternalServerError;
-        ctx.response.body = { message: "Failed to add channel" };
-      }
+      throw new E.INVALID_REQUEST_BODY(error);
     }
+    const {
+      channelContractId,
+      assetCode,
+      assetContractId,
+      issuerAddress,
+      label,
+    } = body;
+
+    if (!channelContractId || typeof channelContractId !== "string") {
+      throw new E.VALIDATION_FAILED("channelContractId is required");
+    }
+
+    if (!StrKey.isValidContractId(channelContractId)) {
+      throw new E.VALIDATION_FAILED("Invalid Soroban contract ID format");
+    }
+
+    if (!assetCode || typeof assetCode !== "string") {
+      throw new E.VALIDATION_FAILED("assetCode is required");
+    }
+
+    if (assetCode.length > 12 || !/^[a-zA-Z0-9]+$/.test(assetCode)) {
+      throw new E.VALIDATION_FAILED(
+        "assetCode must be 1-12 alphanumeric characters",
+      );
+    }
+
+    if (
+      assetContractId && typeof assetContractId === "string" &&
+      !StrKey.isValidContractId(assetContractId)
+    ) {
+      throw new E.VALIDATION_FAILED("Invalid asset contract ID format");
+    }
+
+    if (label && typeof label !== "string") {
+      throw new E.VALIDATION_FAILED("label must be a string");
+    }
+    if (label && label.length > 200) {
+      throw new E.VALIDATION_FAILED("label must be at most 200 characters");
+    }
+
+    const existing = await channelRepo.findByContractId(
+      councilId,
+      channelContractId,
+    );
+    if (existing) {
+      throw new E.RESOURCE_CONFLICT(
+        "Channel with this contract ID already exists",
+      );
+    }
+
+    const channel = await channelRepo.create({
+      id: crypto.randomUUID(),
+      councilId,
+      channelContractId,
+      assetCode: assetCode.trim(),
+      assetContractId: assetContractId?.trim() ?? null,
+      label: label?.trim() ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    try {
+      await knownAssetRepo.upsert(
+        assetCode.trim(),
+        (issuerAddress || "").trim(),
+      );
+    } catch { /* best effort */ }
+
+    log.debug("channelContractId", channelContractId);
+    log.debug("assetCode", assetCode);
+    log.event("channel added");
+
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Channel added",
+      data: formatChannel(channel),
+    };
   };
 }
 
@@ -206,69 +177,55 @@ export function handleGetChannel(
 
   return async (ctx) => {
     log.info("getChannel");
+    const params = (ctx as unknown as { params?: RouteParams }).params;
+    const id = params?.id;
+
+    if (!id) {
+      throw new E.RESOURCE_ID_REQUIRED("Channel ID");
+    }
+
+    const channel = await channelRepo.findById(id);
+    if (!channel) {
+      throw new E.RESOURCE_NOT_FOUND("Channel not found");
+    }
+
+    await requireCouncilOwnership(ctx, channel.councilId, metadataRepo);
+
     try {
-      const params = (ctx as unknown as { params?: RouteParams }).params;
-      const id = params?.id;
+      const onChainState = await queryChannelState(
+        channel.channelContractId,
+        {
+          log,
+        },
+      );
 
-      if (!id) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Channel ID is required" };
-        return;
-      }
+      await channelRepo.update(channel.id, {
+        totalDeposited: onChainState.totalDeposited,
+        totalWithdrawn: onChainState.totalWithdrawn,
+        utxoCount: onChainState.utxoCount,
+        lastSyncedAt: new Date(),
+      });
 
-      const channel = await channelRepo.findById(id);
-      if (!channel) {
-        ctx.response.status = Status.NotFound;
-        ctx.response.body = { message: "Channel not found" };
-        return;
-      }
-
-      if (
-        !await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)
-      ) {
-        return;
-      }
-
-      try {
-        const onChainState = await queryChannelState(
-          channel.channelContractId,
-          {
-            log,
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Channel retrieved",
+        data: {
+          ...formatChannel(channel),
+          state: {
+            totalDeposited: onChainState.totalDeposited?.toString() ?? null,
+            totalWithdrawn: onChainState.totalWithdrawn?.toString() ?? null,
+            utxoCount: onChainState.utxoCount?.toString() ?? null,
+            lastSyncedAt: new Date().toISOString(),
+            ledgerSequence: onChainState.ledgerSequence,
           },
-        );
-
-        await channelRepo.update(channel.id, {
-          totalDeposited: onChainState.totalDeposited,
-          totalWithdrawn: onChainState.totalWithdrawn,
-          utxoCount: onChainState.utxoCount,
-          lastSyncedAt: new Date(),
-        });
-
-        ctx.response.status = Status.OK;
-        ctx.response.body = {
-          message: "Channel retrieved",
-          data: {
-            ...formatChannel(channel),
-            state: {
-              totalDeposited: onChainState.totalDeposited?.toString() ?? null,
-              totalWithdrawn: onChainState.totalWithdrawn?.toString() ?? null,
-              utxoCount: onChainState.utxoCount?.toString() ?? null,
-              lastSyncedAt: new Date().toISOString(),
-              ledgerSequence: onChainState.ledgerSequence,
-            },
-          },
-        };
-      } catch {
-        ctx.response.status = Status.OK;
-        ctx.response.body = {
-          message: "Channel retrieved (cached state, RPC unavailable)",
-          data: formatChannel(channel),
-        };
-      }
-    } catch (error) {
-      log.error(error, "failed to get channel");
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to retrieve channel" };
+        },
+      };
+    } catch {
+      ctx.response.status = Status.OK;
+      ctx.response.body = {
+        message: "Channel retrieved (cached state, RPC unavailable)",
+        data: formatChannel(channel),
+      };
     }
   };
 }
@@ -280,52 +237,38 @@ export function handleRemoveChannel(
 
   return async (ctx) => {
     log.info("removeChannel");
-    try {
-      const params = (ctx as unknown as { params?: RouteParams }).params;
-      const id = params?.id;
+    const params = (ctx as unknown as { params?: RouteParams }).params;
+    const id = params?.id;
 
-      if (!id) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Channel ID is required" };
-        return;
-      }
-
-      const channel = await channelRepo.findById(id);
-      if (!channel) {
-        ctx.response.status = Status.NotFound;
-        ctx.response.body = { message: "Channel not found" };
-        return;
-      }
-
-      if (
-        !await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)
-      ) {
-        return;
-      }
-
-      // Record the council's intent ONLY. The authoritative `status` flip to
-      // "disabled" is written by the event-watcher when the quorum-authorized
-      // disable_channel call is confirmed on-chain — never here (no optimistic
-      // authoritative write). The on-chain quorum tx is signed client-side.
-      const updated = await channelRepo.setPendingAction(
-        id,
-        ChannelPendingAction.DISABLE,
-      );
-
-      log.debug("id", id);
-      log.debug("channelContractId", channel.channelContractId);
-      log.event("channel disable requested (pending on-chain confirmation)");
-
-      ctx.response.status = Status.Accepted;
-      ctx.response.body = {
-        message: "Channel disable requested; pending on-chain confirmation",
-        data: formatChannel(updated),
-      };
-    } catch (error) {
-      log.error(error, "failed to request channel disable");
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to request channel disable" };
+    if (!id) {
+      throw new E.RESOURCE_ID_REQUIRED("Channel ID");
     }
+
+    const channel = await channelRepo.findById(id);
+    if (!channel) {
+      throw new E.RESOURCE_NOT_FOUND("Channel not found");
+    }
+
+    await requireCouncilOwnership(ctx, channel.councilId, metadataRepo);
+
+    // Record the council's intent ONLY. The authoritative `status` flip to
+    // "disabled" is written by the event-watcher when the quorum-authorized
+    // disable_channel call is confirmed on-chain — never here (no optimistic
+    // authoritative write). The on-chain quorum tx is signed client-side.
+    const updated = await channelRepo.setPendingAction(
+      id,
+      ChannelPendingAction.DISABLE,
+    );
+
+    log.debug("id", id);
+    log.debug("channelContractId", channel.channelContractId);
+    log.event("channel disable requested (pending on-chain confirmation)");
+
+    ctx.response.status = Status.Accepted;
+    ctx.response.body = {
+      message: "Channel disable requested; pending on-chain confirmation",
+      data: formatChannel(updated),
+    };
   };
 }
 
@@ -336,51 +279,37 @@ export function handleEnableChannel(
 
   return async (ctx) => {
     log.info("enableChannel");
-    try {
-      const params = (ctx as unknown as { params?: RouteParams }).params;
-      const id = params?.id;
+    const params = (ctx as unknown as { params?: RouteParams }).params;
+    const id = params?.id;
 
-      if (!id) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body = { message: "Channel ID is required" };
-        return;
-      }
-
-      const channel = await channelRepo.findByIdIncludeDeleted(id);
-      if (!channel || channel.status !== ChannelStatus.DISABLED) {
-        ctx.response.status = Status.NotFound;
-        ctx.response.body = { message: "Disabled channel not found" };
-        return;
-      }
-
-      if (
-        !await requireCouncilOwnership(ctx, channel.councilId, metadataRepo)
-      ) {
-        return;
-      }
-
-      // Intent only — the watcher flips `status` back to "enabled" once the
-      // quorum-authorized enable_channel call is confirmed on-chain. Re-enable
-      // reuses the same on-chain enable action.
-      const updated = await channelRepo.setPendingAction(
-        id,
-        ChannelPendingAction.ENABLE,
-      );
-
-      log.debug("id", id);
-      log.debug("channelContractId", channel.channelContractId);
-      log.event("channel re-enable requested (pending on-chain confirmation)");
-
-      ctx.response.status = Status.Accepted;
-      ctx.response.body = {
-        message: "Channel re-enable requested; pending on-chain confirmation",
-        data: formatChannel(updated),
-      };
-    } catch (error) {
-      log.error(error, "failed to request channel re-enable");
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to request channel re-enable" };
+    if (!id) {
+      throw new E.RESOURCE_ID_REQUIRED("Channel ID");
     }
+
+    const channel = await channelRepo.findByIdIncludeDeleted(id);
+    if (!channel || channel.status !== ChannelStatus.DISABLED) {
+      throw new E.RESOURCE_NOT_FOUND("Disabled channel not found");
+    }
+
+    await requireCouncilOwnership(ctx, channel.councilId, metadataRepo);
+
+    // Intent only — the watcher flips `status` back to "enabled" once the
+    // quorum-authorized enable_channel call is confirmed on-chain. Re-enable
+    // reuses the same on-chain enable action.
+    const updated = await channelRepo.setPendingAction(
+      id,
+      ChannelPendingAction.ENABLE,
+    );
+
+    log.debug("id", id);
+    log.debug("channelContractId", channel.channelContractId);
+    log.event("channel re-enable requested (pending on-chain confirmation)");
+
+    ctx.response.status = Status.Accepted;
+    ctx.response.body = {
+      message: "Channel re-enable requested; pending on-chain confirmation",
+      data: formatChannel(updated),
+    };
   };
 }
 
@@ -391,22 +320,15 @@ export function handleListDisabledChannels(
 
   return async (ctx) => {
     log.info("listDisabledChannels");
-    try {
-      const councilId = requireCouncilId(ctx);
-      if (!councilId) return;
-      if (!await requireCouncilOwnership(ctx, councilId, metadataRepo)) return;
+    const councilId = requireCouncilId(ctx);
+    await requireCouncilOwnership(ctx, councilId, metadataRepo);
 
-      const channels = await channelRepo.listDisabled(councilId);
+    const channels = await channelRepo.listDisabled(councilId);
 
-      ctx.response.status = Status.OK;
-      ctx.response.body = {
-        message: "Disabled channels retrieved",
-        data: channels.map(formatChannel),
-      };
-    } catch (error) {
-      log.error(error, "failed to list disabled channels");
-      ctx.response.status = Status.InternalServerError;
-      ctx.response.body = { message: "Failed to retrieve disabled channels" };
-    }
+    ctx.response.status = Status.OK;
+    ctx.response.body = {
+      message: "Disabled channels retrieved",
+      data: channels.map(formatChannel),
+    };
   };
 }

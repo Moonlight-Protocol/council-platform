@@ -7,7 +7,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { newNoop } from "@/utils/logger/index.ts";
-import { createMockContext } from "../../test_app.ts";
+import { createMockContext, runHandler } from "../../test_app.ts";
 import {
   ADMIN_KEYPAIR,
   ensureInitialized,
@@ -78,7 +78,7 @@ Deno.test("POST /council/escrow - creates escrow with provider JWT", async () =>
     },
     state: providerState(providerKp.publicKey()),
   });
-  await handlePostEscrow({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostEscrow({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -102,7 +102,7 @@ Deno.test("POST /council/escrow - rejects non-provider JWT", async () => {
     },
     state: adminState(),
   });
-  await handlePostEscrow({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostEscrow({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 403);
@@ -131,10 +131,11 @@ Deno.test("POST /council/escrow - rejects invalid amount", async () => {
     },
     state: providerState(providerKp.publicKey()),
   });
-  await handlePostEscrow({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostEscrow({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(
     res.body.message,
     "amount must be a positive integer string (stroops)",
@@ -163,10 +164,11 @@ Deno.test("POST /council/escrow - rejects missing fields", async () => {
     },
     state: providerState(providerKp.publicKey()),
   });
-  await handlePostEscrow({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostEscrow({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
 });
 
 // ---------------------------------------------------------------------------
@@ -196,7 +198,7 @@ Deno.test("GET /council/escrow/:address - returns escrow summary", async () => {
     params: { address: recipientAddr },
     state: adminState(),
   });
-  await handleGetEscrowSummary({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleGetEscrowSummary({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -227,7 +229,7 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=false for 
       count: "1",
     },
   });
-  await handleGetRecipientUtxos({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleGetRecipientUtxos({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -256,7 +258,7 @@ Deno.test("GET /council/recipient/:address/utxos - returns registered=true for r
       count: "2",
     },
   });
-  await handleGetRecipientUtxos({ log: newNoop() })(ctx);
+  await runHandler(ctx, handleGetRecipientUtxos({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -301,7 +303,7 @@ Deno.test("POST /council/escrow/:address/release - releases held escrows", async
     body: { channelContractId: TEST_CONTRACT_ID },
     state: adminState(),
   });
-  await handlePostEscrowRelease({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostEscrowRelease({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 200);
@@ -334,10 +336,11 @@ Deno.test("POST /council/escrow - rejects invalid channelContractId", async () =
     },
     state: providerState(providerKp.publicKey()),
   });
-  await handlePostEscrow({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostEscrow({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(res.body.message, "Invalid channelContractId");
 });
 
@@ -354,9 +357,10 @@ Deno.test("POST /council/escrow/:address/release - rejects invalid channelContra
     body: { channelContractId: "bad" },
     state: adminState(),
   });
-  await handlePostEscrowRelease({ log: newNoop() })(ctx);
+  await runHandler(ctx, handlePostEscrowRelease({ log: newNoop() }));
 
   const res = getResponse();
   assertEquals(res.status, 400);
+  assertEquals(res.body.code, "HTTP_REQ_002");
   assertEquals(res.body.message, "Valid channelContractId is required");
 });
