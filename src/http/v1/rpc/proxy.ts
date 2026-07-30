@@ -1,4 +1,5 @@
 import { type Context, Status } from "@oak/oak";
+import { xdr } from "stellar-sdk";
 import { NETWORK_CONFIG } from "@/config/env.ts";
 import type { Logger } from "@/utils/logger/index.ts";
 
@@ -37,6 +38,29 @@ function firstId(payload: unknown): unknown {
   if (Array.isArray(payload)) return null;
   const id = (payload as JsonRpcRequest | null)?.id;
   return id ?? null;
+}
+
+/**
+ * Extract the declared fee (stroops) from a base64 transaction envelope XDR.
+ * Safe to log — it's a scalar, not tx contents (source/ops/amounts).
+ */
+function txFee(txXdr: unknown): string | undefined {
+  if (typeof txXdr !== "string") return undefined;
+  try {
+    const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
+    switch (env.switch().name) {
+      case "envelopeTypeTx":
+        return env.v1().tx().fee().toString();
+      case "envelopeTypeTxFeeBump":
+        return env.feeBump().tx().fee().toString();
+      case "envelopeTypeTxV0":
+        return env.v0().tx().fee().toString();
+      default:
+        return undefined;
+    }
+  } catch {
+    return undefined;
+  }
 }
 
 export function handleRpcProxy(
@@ -97,6 +121,18 @@ export function handleRpcProxy(
     // Method + status only — never request/response bodies (may carry tx data).
     log.debug("method", entries.map((e) => e?.method ?? "").join(","));
     log.debug("status", upstream.status);
+
+    // For submits, surface the declared fee + upstream status at event level so
+    // fee/"insufficient balance" failures are diagnosable without the tx body.
+    for (const e of entries) {
+      if (e?.method === "sendTransaction") {
+        const fee = txFee((e as { params?: { transaction?: unknown } }).params
+          ?.transaction);
+        log.event(
+          `sendTransaction fee=${fee ?? "?"} stroops httpStatus=${upstream.status}`,
+        );
+      }
+    }
 
     ctx.response.status = upstream.status;
     try {
