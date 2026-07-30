@@ -126,10 +126,14 @@ export function handleRpcProxy(
     // fee/"insufficient balance" failures are diagnosable without the tx body.
     for (const e of entries) {
       if (e?.method === "sendTransaction") {
-        const fee = txFee((e as { params?: { transaction?: unknown } }).params
-          ?.transaction);
+        const fee = txFee(
+          (e as { params?: { transaction?: unknown } }).params
+            ?.transaction,
+        );
         log.event(
-          `sendTransaction fee=${fee ?? "?"} stroops httpStatus=${upstream.status}`,
+          `sendTransaction fee=${
+            fee ?? "?"
+          } stroops httpStatus=${upstream.status}`,
         );
       }
     }
